@@ -1,0 +1,151 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark *));
+
+@theme {
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
+
+  --color-surface-50: #f8fafc;
+  --color-surface-100: #f1f5f9;
+  --color-surface-200: #e2e8f0;
+  --color-surface-300: #cbd5e1;
+  --color-surface-400: #94a3b8;
+  --color-surface-500: #64748b;
+  --color-surface-600: #475569;
+  --color-surface-700: #334155;
+  --color-surface-800: #1e293b;
+  --color-surface-900: #0f172a;
+  --color-surface-950: #020617;
+
+  --color-accent-400: #38bdf8;
+  --color-accent-500: #0ea5e9;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-surface-50 text-surface-900 font-sans antialiased transition-colors duration-300;
+  }
+
+  .dark body {
+    @apply bg-surface-950 text-surface-100;
+  }
+}
+
+/* ReactFlow overrides */
+.react-flow__node {
+  @apply !bg-white !border-primary-300 !rounded-xl !shadow-lg !px-4 !py-2 !text-sm !font-medium;
+}
+
+.dark .react-flow__node {
+  @apply !bg-surface-800 !border-primary-600 !text-surface-100;
+}
+
+.react-flow__edge-path {
+  @apply !stroke-primary-400;
+}
+
+.dark .react-flow__edge-path {
+  @apply !stroke-primary-500;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-surface-300 rounded-full;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  @apply bg-surface-600;
+}
+
+/* Markdown prose styling */
+.prose-chat h1, .prose-chat h2, .prose-chat h3 {
+  @apply font-bold mt-3 mb-1;
+}
+
+.prose-chat p {
+  @apply mb-2 leading-relaxed;
+}
+
+.prose-chat code {
+  @apply bg-surface-200 px-1.5 py-0.5 rounded text-sm font-mono;
+}
+
+.dark .prose-chat code {
+  @apply bg-surface-700;
+}
+
+.prose-chat pre {
+  @apply bg-surface-200 p-3 rounded-lg overflow-x-auto my-2;
+}
+
+.dark .prose-chat pre {
+  @apply bg-surface-800;
+}
+
+.prose-chat ul, .prose-chat ol {
+  @apply pl-5 mb-2;
+}
+
+.prose-chat li {
+  @apply mb-1;
+}
+
+.prose-chat ul {
+  list-style-type: disc;
+}
+
+.prose-chat ol {
+  list-style-type: decimal;
+}
+
+/* Toast animations */
+@keyframes toast-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes toast-out {
+  from { transform: translateX(0);    opacity: 1; }
+  to   { transform: translateX(100%); opacity: 0; }
+}
+
+.toast-enter {
+  animation: toast-in 0.3s ease-out forwards;
+}
+
+.toast-exit {
+  animation: toast-out 0.3s ease-in forwards;
+}
+
+/* Drag & drop pulse */
+@keyframes pulse-border {
+  0%, 100% { border-color: var(--color-primary-400); }
+  50%      { border-color: var(--color-primary-600); }
+}
+
+.drag-active {
+  animation: pulse-border 1s ease-in-out infinite;
+}
