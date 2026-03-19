@@ -1,8 +1,14 @@
 import { create } from 'zustand'
 
 export const AVAILABLE_MODELS = [
-  { id: 'typhoon-2.5', name: 'Typhoon 2.5' },
-  { id: 'chinda', name: 'Chinda' },
+  { 
+    id: 'scb10x/typhoon2.5-qwen3-4b',
+    name: 'Typhoon 2.5 (4B)' 
+  },
+  { 
+    id: 'iapp/chinda-qwen3-4b',
+    name: 'Chinda (4B)' 
+  },
   { id: 'llama-3.1', name: 'LLaMA 3.1' },
   { id: 'gemma-2', name: 'Gemma 2' },
 ]

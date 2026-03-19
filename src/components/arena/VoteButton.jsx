@@ -16,7 +16,7 @@ export default function VoteButton({ currentVote, onVote }) {
         id="vote-up-button"
       >
         <ThumbsUp className="w-3.5 h-3.5" />
-        Better
+        ดีกว่า
       </button>
       <button
         onClick={() => onVote(currentVote === 'down' ? null : 'down')}
@@ -31,7 +31,7 @@ export default function VoteButton({ currentVote, onVote }) {
         id="vote-down-button"
       >
         <ThumbsDown className="w-3.5 h-3.5" />
-        Worse
+        แย่กว่า
       </button>
     </div>
   )

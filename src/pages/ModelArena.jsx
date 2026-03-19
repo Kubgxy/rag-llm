@@ -22,11 +22,11 @@ export default function ModelArena() {
           <div className="flex items-center gap-2">
             <Swords className="w-6 h-6 text-primary-500" />
             <h1 className="text-xl font-bold text-surface-900 dark:text-white">
-              Model Arena
+              สนามประลองโมเดล
             </h1>
           </div>
           <p className="text-sm text-surface-500 mt-0.5">
-            Compare two AI models head-to-head on the same question
+            เปรียบเทียบ AI สองโมเดลกับคำถามเดียวกัน
           </p>
         </div>
 
@@ -35,7 +35,7 @@ export default function ModelArena() {
           {/* Model A */}
           <div className="flex-1 sm:w-44">
             <label className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1 block">
-              Model A
+              โมเดล A
             </label>
             <div className="relative">
               <select
@@ -63,7 +63,7 @@ export default function ModelArena() {
           {/* Model B */}
           <div className="flex-1 sm:w-44">
             <label className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1 block">
-              Model B
+              โมเดล B
             </label>
             <div className="relative">
               <select
@@ -99,7 +99,7 @@ export default function ModelArena() {
           <ChatInput
             onSend={sendArenaMessage}
             isLoading={isArenaLoading}
-            placeholder="Ask both models the same question..."
+            placeholder="ถามคำถามเดียวกันกับทั้งสองโมเดล..."
           />
         </div>
       </div>

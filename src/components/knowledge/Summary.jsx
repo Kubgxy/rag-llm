@@ -7,7 +7,7 @@ export default function Summary() {
   if (!summary) {
     return (
       <p className="text-sm text-surface-500 dark:text-surface-500 italic">
-        No summary available yet.
+        ยังไม่มีข้อมูลสรุป กรุณาอัปโหลดเอกสารก่อน
       </p>
     )
   }

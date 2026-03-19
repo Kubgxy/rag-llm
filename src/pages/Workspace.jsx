@@ -23,10 +23,10 @@ export default function Workspace() {
           {/* Section header */}
           <div>
             <h1 className="text-xl font-bold text-surface-900 dark:text-white">
-              Document & Knowledge
+              เอกสารและองค์ความรู้
             </h1>
             <p className="text-sm text-surface-500 mt-0.5">
-              Upload a PDF to auto-generate knowledge insights
+              อัปโหลด PDF เพื่อสร้างสรุปและ Mindmap อัตโนมัติ
             </p>
           </div>
 
@@ -36,7 +36,7 @@ export default function Workspace() {
           {/* Auto-Knowledge tabs (Summary / Mindmap) */}
           <div className="flex-1 min-h-0 bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 p-5 overflow-hidden flex flex-col">
             <h2 className="text-sm font-semibold text-surface-600 dark:text-surface-400 uppercase tracking-wider mb-3">
-              Auto-Generated Knowledge
+              องค์ความรู้อัตโนมัติ
             </h2>
             <div className="flex-1 min-h-0">
               <KnowledgeTabs />
@@ -52,7 +52,7 @@ export default function Workspace() {
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-primary-500" />
                 <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200">
-                  AI Chat
+                  แชท AI
                 </h2>
               </div>
               <div className="w-48">
@@ -70,10 +70,10 @@ export default function Workspace() {
                     <MessageSquare className="w-8 h-8 text-primary-500" />
                   </div>
                   <p className="text-sm font-medium text-surface-500">
-                    Start a conversation
+                    เริ่มการสนทนา
                   </p>
                   <p className="text-xs text-surface-400 mt-1">
-                    Ask questions about your uploaded document
+                    ถามคำถามเกี่ยวกับเอกสารที่คุณอัปโหลด
                   </p>
                 </div>
               </div>
@@ -103,7 +103,7 @@ export default function Workspace() {
 
           {/* Input */}
           <div className="px-5 py-4 border-t border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-950/50">
-            <ChatInput onSend={sendMessage} isLoading={isLoading} />
+            <ChatInput onSend={sendMessage} isLoading={isLoading} placeholder="ถามคำถามเกี่ยวกับเอกสารของคุณ..." />
           </div>
         </div>
       </div>

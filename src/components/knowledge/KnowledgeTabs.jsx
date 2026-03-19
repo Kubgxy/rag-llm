@@ -4,8 +4,8 @@ import Mindmap from './Mindmap.jsx'
 import { FileText, GitBranch } from 'lucide-react'
 
 const TABS = [
-  { id: 'summary', label: 'Summary', icon: FileText },
-  { id: 'mindmap', label: 'Mindmap', icon: GitBranch },
+  { id: 'summary', label: 'สรุปเนื้อหา', icon: FileText },
+  { id: 'mindmap', label: 'แผนผัง Mindmap', icon: GitBranch },
 ]
 
 export default function KnowledgeTabs() {
@@ -20,10 +20,10 @@ export default function KnowledgeTabs() {
           <FileText className="w-8 h-8 text-surface-400" />
         </div>
         <p className="text-sm font-medium text-surface-500 dark:text-surface-500">
-          Upload a document to generate insights
+          อัปโหลดเอกสารเพื่อสร้างข้อมูลเชิงลึก
         </p>
         <p className="text-xs text-surface-400 mt-1">
-          Summary and mindmap will appear here automatically
+          สรุปเนื้อหาและ Mindmap จะแสดงที่นี่โดยอัตโนมัติ
         </p>
       </div>
     )

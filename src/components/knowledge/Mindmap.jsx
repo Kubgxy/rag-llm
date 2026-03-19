@@ -33,7 +33,7 @@ export default function Mindmap() {
   if (storeNodes.length === 0) {
     return (
       <p className="text-sm text-surface-500 dark:text-surface-500 italic">
-        No mindmap data available yet.
+        ยังไม่มีข้อมูล Mindmap กรุณาอัปโหลดเอกสารก่อน
       </p>
     )
   }

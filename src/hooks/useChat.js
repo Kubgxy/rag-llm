@@ -23,10 +23,16 @@ export function useChat() {
 
       try {
         const data = await chatSingle(query, selectedModel)
-        addAssistantMessage(data.answer)
+        // Backend อาจส่ง { status: "error", message: "..." } กลับมาแทน
+        if (data.status === 'error') {
+          addToast(data.message || 'โมเดลตอบกลับไม่สำเร็จ', 'error')
+          addAssistantMessage('⚠️ เกิดข้อผิดพลาด: ' + (data.message || 'ไม่ทราบสาเหตุ'))
+        } else {
+          addAssistantMessage(data.answer)
+        }
       } catch (err) {
-        addToast(err.message || 'Failed to get response', 'error')
-        addAssistantMessage('⚠️ Sorry, an error occurred. Please try again.')
+        addToast(err.message || 'ไม่สามารถเชื่อมต่อกับ Server ได้', 'error')
+        addAssistantMessage('⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง')
       } finally {
         setLoading(false)
       }
@@ -59,14 +65,23 @@ export function useArenaChat() {
 
       try {
         const data = await chatCompare(query, [arenaModelA, arenaModelB])
-        const respA = data.responses?.find((r) => r.model === arenaModelA)?.answer || 'No response'
-        const respB = data.responses?.find((r) => r.model === arenaModelB)?.answer || 'No response'
-        addArenaResponse({ responseA: respA, responseB: respB })
+        // Backend ส่งกลับมาในรูปแบบ { results: { "model_id": "answer" } }
+        if (data.status === 'error') {
+          addToast(data.message || 'การเปรียบเทียบล้มเหลว', 'error')
+          addArenaResponse({
+            responseA: '⚠️ เกิดข้อผิดพลาด: ' + (data.message || ''),
+            responseB: '⚠️ เกิดข้อผิดพลาด: ' + (data.message || ''),
+          })
+        } else {
+          const respA = data.results?.[arenaModelA] || 'ไม่ได้รับคำตอบจากโมเดลนี้'
+          const respB = data.results?.[arenaModelB] || 'ไม่ได้รับคำตอบจากโมเดลนี้'
+          addArenaResponse({ responseA: respA, responseB: respB })
+        }
       } catch (err) {
-        addToast(err.message || 'Arena comparison failed', 'error')
+        addToast(err.message || 'การเปรียบเทียบโมเดลล้มเหลว', 'error')
         addArenaResponse({
-          responseA: '⚠️ Error occurred',
-          responseB: '⚠️ Error occurred',
+          responseA: '⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ',
+          responseB: '⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ',
         })
       } finally {
         setArenaLoading(false)

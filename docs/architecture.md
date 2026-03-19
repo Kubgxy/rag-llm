@@ -1,117 +1,123 @@
-# Architecture Guide
+# คู่มือสถาปัตยกรรม (Architecture Guide)
 
-## Overview
+## ภาพรวม
 
-The application follows a modern React architecture with clear separation of concerns:
-- **Pages** handle layout composition
-- **Components** are reusable UI building blocks
-- **Stores** (Zustand) manage global state
-- **Hooks** encapsulate business logic
-- **Services** handle API communication
+แอปพลิเคชันออกแบบตามหลัก Modern React Architecture โดยแยกความรับผิดชอบชัดเจน:
+- **Pages** — จัดวาง Layout ของแต่ละหน้า
+- **Components** — ชิ้นส่วน UI ที่นำกลับมาใช้ซ้ำได้
+- **Stores** (Zustand) — จัดการ State ส่วนกลาง
+- **Hooks** — ห่อหุ้ม Business Logic
+- **Services** — ติดต่อ API Backend
 
 ---
 
-## Component Hierarchy
+## ลำดับชั้นของ Component
 
 ```
 App
 └── MainLayout (Navbar + ToastProvider + Outlet)
-    ├── Workspace (Page)
-    │   ├── UploadZone
+    ├── Workspace (หน้าหลัก)
+    │   ├── UploadZone (ลาก-วาง PDF + Polling สถานะ)
     │   ├── KnowledgeTabs
-    │   │   ├── Summary
+    │   │   ├── Summary (สรุปเนื้อหา)
     │   │   └── Mindmap (ReactFlow)
-    │   ├── ModelSelector
-    │   ├── ChatMessage[]
-    │   └── ChatInput
+    │   ├── ModelSelector (เลือกโมเดล AI)
+    │   ├── ChatMessage[] (ข้อความแชท)
+    │   └── ChatInput (ช่องพิมพ์)
     │
-    └── ModelArena (Page)
-        ├── Model A Dropdown
-        ├── Model B Dropdown
-        ├── ArenaChat
-        │   └── VoteButton[]
-        └── ChatInput
+    └── ModelArena (สนามประลอง)
+        ├── Dropdown โมเดล A
+        ├── Dropdown โมเดล B
+        ├── ArenaChat (แสดงคำตอบ 2 ฝั่ง)
+        │   └── VoteButton[] (ปุ่มโหวต)
+        └── ChatInput (ช่องพิมพ์ร่วม)
 ```
 
 ---
 
 ## State Management (Zustand)
 
-Three independent stores, each serving a single concern:
+ใช้ 3 Store แยกกัน แต่ละตัวรับผิดชอบงานเดียว:
 
 ### `themeStore`
-| State | Type | Description |
+| State | Type | คำอธิบาย |
 |---|---|---|
-| `theme` | `'light' \| 'dark'` | Current theme, persisted to `localStorage` |
+| `theme` | `'light' \| 'dark'` | ธีมปัจจุบัน (บันทึกลง localStorage) |
 
-| Action | Description |
+| Action | คำอธิบาย |
 |---|---|
-| `toggleTheme()` | Flips theme and applies `.dark` class on `<html>` |
+| `toggleTheme()` | สลับธีมและเพิ่ม/ลบ class `.dark` บน `<html>` |
 
 ### `documentStore`
-| State | Type | Description |
+| State | Type | คำอธิบาย |
 |---|---|---|
-| `documents` | `Array<{name, uploadedAt}>` | List of uploaded files |
-| `summary` | `string` | Auto-generated document summary |
-| `mindmapNodes` | `Array<Node>` | ReactFlow node data |
-| `mindmapEdges` | `Array<Edge>` | ReactFlow edge data |
-| `isUploading` | `boolean` | Upload in progress |
-| `uploadError` | `string \| null` | Last upload error |
-| `activeTab` | `'summary' \| 'mindmap'` | Current knowledge tab |
+| `documents` | `Array<{name, uploadedAt}>` | รายชื่อไฟล์ที่อัปโหลดแล้ว |
+| `summary` | `string` | สรุปเนื้อหาเอกสาร (จาก AI) |
+| `mindmapNodes` | `Array<Node>` | ข้อมูล Node สำหรับ ReactFlow |
+| `mindmapEdges` | `Array<Edge>` | ข้อมูลเส้นเชื่อมสำหรับ ReactFlow |
+| `isUploading` | `boolean` | กำลังอัปโหลด/ประมวลผลอยู่ |
+| `uploadError` | `string \| null` | ข้อผิดพลาดล่าสุด |
+| `activeTab` | `'summary' \| 'mindmap'` | แท็บที่เลือกอยู่ |
 
 ### `chatStore`
-| State | Type | Description |
+| State | Type | คำอธิบาย |
 |---|---|---|
-| `messages` | `Array<Message>` | Single-model chat history |
-| `selectedModel` | `string` | Active model ID |
-| `isLoading` | `boolean` | Chat request in progress |
-| `arenaMessages` | `Array<ArenaMessage>` | Arena chat history |
-| `arenaModelA/B` | `string` | Selected arena models |
-| `isArenaLoading` | `boolean` | Arena request in progress |
+| `messages` | `Array<Message>` | ประวัติแชทโมเดลเดี่ยว |
+| `selectedModel` | `string` | ID โมเดลที่เลือก |
+| `isLoading` | `boolean` | กำลังรอคำตอบจาก AI |
+| `arenaMessages` | `Array<ArenaMessage>` | ประวัติแชทสนามประลอง |
+| `arenaModelA/B` | `string` | โมเดลที่เลือกในสนามประลอง |
+| `isArenaLoading` | `boolean` | กำลังรอคำตอบสนามประลอง |
 
 ---
 
-## Routing
+## เส้นทาง (Routing)
 
-| Path | Page | Description |
+| Path | Page | คำอธิบาย |
 |---|---|---|
-| `/` | `Workspace` | Main document upload + chat interface |
-| `/arena` | `ModelArena` | Model comparison arena |
+| `/` | `Workspace` | หน้าหลัก (อัปโหลดเอกสาร + แชท) |
+| `/arena` | `ModelArena` | หน้าเปรียบเทียบโมเดล |
 
-Both routes are wrapped by `MainLayout` which provides the persistent `Navbar` and `ToastProvider`.
+ทั้ง 2 เส้นทางครอบด้วย `MainLayout` ที่มี `Navbar` และ `ToastProvider` ตลอด
 
 ---
 
 ## Custom Hooks
 
 ### `useUpload()`
-Encapsulates drag & drop logic, file validation (PDF only, ≤50MB), and API upload calls. Updates `documentStore` on success/failure.
+จัดการ Logic ลาก-วางไฟล์, ตรวจสอบไฟล์ (PDF เท่านั้น, ≤50MB), ส่งไฟล์ไป API แล้ว **Polling สถานะทุก 5 วินาที** จนกว่า Backend จะประมวลผลเสร็จ
 
 ### `useChat()`
-Manages single-model chat flow: adds user message → calls API → adds assistant response. Handles loading state and errors.
+จัดการ Logic แชทโมเดลเดี่ยว: เพิ่มข้อความผู้ใช้ → เรียก API → เพิ่มคำตอบ AI  
+รองรับกรณี Backend ส่ง `{ status: "error" }` กลับมา
 
 ### `useArenaChat()`
-Manages arena comparison flow: sends query to both models simultaneously → displays side-by-side responses. Includes vote tracking.
+จัดการ Logic แชทสนามประลอง: ส่งคำถามไป 2 โมเดลพร้อมกัน → แสดงคำตอบเคียงข้างกัน  
+อ่านคำตอบจาก `data.results[modelId]` (Object format)
 
 ---
 
-## Toast Notification System
+## ระบบ Toast Notification
 
-The `ToastProvider` uses React Context to expose `addToast(message, type, duration)` to any component. Toasts auto-dismiss with CSS enter/exit animations.
+`ToastProvider` ใช้ React Context เปิดให้ทุก Component เรียก `addToast(message, type, duration)` ได้  
+Toast จะหายไปอัตโนมัติพร้อม CSS Animation
 
-Types: `success`, `error`, `info`
+ประเภท: `success`, `error`, `info`
 
 ---
 
-## Data Flow
+## การไหลของข้อมูล (Data Flow)
 
 ```
-User Upload → useUpload hook → api.uploadDocument()
-  → documentStore.setUploadResult() → UI updates
-  
-User Chat → useChat hook → api.chatSingle()
-  → chatStore.addAssistantMessage() → UI updates
+อัปโหลดไฟล์ → useUpload hook → api.uploadDocument()
+  → Backend ตอบ { filename } ทันที
+  → useUpload เริ่ม Polling (ทุก 5 วินาที) → api.checkDocumentStatus()
+  → เมื่อ status === "completed" → documentStore.setUploadResult() → UI อัปเดต
 
-Arena Chat → useArenaChat hook → api.chatCompare()
-  → chatStore.addArenaResponse() → Split-screen UI updates
+แชทปกติ → useChat hook → api.chatSingle()
+  → chatStore.addAssistantMessage() → UI อัปเดต
+
+แชทสนามประลอง → useArenaChat hook → api.chatCompare()
+  → อ่าน data.results[modelA] & data.results[modelB]
+  → chatStore.addArenaResponse() → UI แสดงแบบ Split-screen
 ```

@@ -4,8 +4,8 @@ import { Sun, Moon, Menu, X, BookOpen, Swords } from 'lucide-react'
 import { useThemeStore } from '../../stores/themeStore.js'
 
 const NAV_LINKS = [
-  { path: '/', label: 'Workspace', icon: BookOpen },
-  { path: '/arena', label: 'Model Arena', icon: Swords },
+  { path: '/', label: 'พื้นที่ทำงาน', icon: BookOpen },
+  { path: '/arena', label: 'สนามประลอง', icon: Swords },
 ]
 
 export default function Navbar() {

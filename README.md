@@ -1,27 +1,27 @@
 # NotebookLM Clone — Local RAG & Model Arena
 
-A modern, full-featured **NotebookLM-inspired** frontend application featuring **document-powered AI chat** with RAG (Retrieval-Augmented Generation) and a **Model Arena** for head-to-head AI model comparison.
+แอปพลิเคชัน Frontend ที่ได้รับแรงบันดาลใจจาก **NotebookLM** สำหรับ **แชท AI ด้วยเอกสาร** ผ่านระบบ RAG (Retrieval-Augmented Generation) และ **สนามประลองโมเดล** สำหรับเปรียบเทียบ AI แบบตัวต่อตัว
 
 ---
 
-## ✨ Features
+## ✨ ฟีเจอร์หลัก
 
-| Feature | Description |
+| ฟีเจอร์ | รายละเอียด |
 |---|---|
-| 📄 **PDF Upload** | Drag & drop PDF upload with processing status |
-| 🧠 **Auto-Knowledge** | Automatic summary & interactive mindmap generation |
-| 💬 **AI Chat** | Single-model RAG chat with markdown rendering |
-| ⚔️ **Model Arena** | Compare 2 AI models side-by-side on the same query |
-| 👍 **Vote System** | Thumbs up/down feedback on arena responses |
-| 🌙 **Dark/Light Mode** | System-aware theme toggle with smooth transitions |
-| 📱 **Responsive** | Mobile, tablet, and desktop layouts |
+| 📄 **อัปโหลด PDF** | ลาก-วางไฟล์ PDF พร้อมแสดงสถานะการประมวลผลแบบ Real-time |
+| 🧠 **องค์ความรู้อัตโนมัติ** | สร้างสรุปเนื้อหาและ Mindmap จากเอกสารโดยอัตโนมัติ |
+| 💬 **แชท AI** | แชทกับ AI โมเดลเดียว พร้อมรองรับ Markdown |
+| ⚔️ **สนามประลองโมเดล** | เปรียบเทียบ 2 โมเดล AI แบบเคียงข้างกัน |
+| 👍 **ระบบโหวต** | ให้คะแนน ดีกว่า/แย่กว่า สำหรับคำตอบในสนามประลอง |
+| 🌙 **Dark/Light Mode** | สลับธีมได้ พร้อม Transition ที่นุ่มนวล |
+| 📱 **Responsive** | รองรับ Mobile, Tablet และ Desktop |
 
 ---
 
 ## 🛠 Tech Stack
 
 - **Framework**: React 19 + Vite 6
-- **Styling**: Tailwind CSS v4 (dark mode via class strategy)
+- **Styling**: Tailwind CSS v4 (dark mode ผ่าน class strategy)
 - **Routing**: React Router DOM v7
 - **State Management**: Zustand v5
 - **Icons**: Lucide React
@@ -31,39 +31,39 @@ A modern, full-featured **NotebookLM-inspired** frontend application featuring *
 
 ---
 
-## 🚀 Getting Started
+## 🚀 เริ่มต้นใช้งาน
 
-### Prerequisites
+### สิ่งที่ต้องมี
 
 - Node.js ≥ 18
 - npm ≥ 9
 
-### Installation
+### ติดตั้ง
 
 ```bash
-# Clone the repository
+# Clone repository
 git clone <your-repo-url>
 cd rag-llm
 
-# Install dependencies
+# ติดตั้ง dependencies
 npm install
 
-# Create environment file (already provided as .env)
-# Edit VITE_API_BASE_URL if your backend is on a different port
+# แก้ไข .env ให้ชี้ไปที่ Backend API (เช่น Ngrok URL)
+# VITE_API_BASE_URL=https://xxxx.ngrok-free.app
 
-# Start dev server
+# เริ่ม dev server
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173`
+เปิดเบราว์เซอร์ที่ `http://localhost:5173`
 
 ### Environment Variables
 
-| Variable | Default | Description |
+| ตัวแปร | ค่าเริ่มต้น | คำอธิบาย |
 |---|---|---|
-| `VITE_API_BASE_URL` | `http://localhost:8000` | Backend API base URL |
+| `VITE_API_BASE_URL` | `http://localhost:8000` | URL ของ Backend API (FastAPI) |
 
-### Build for Production
+### Build สำหรับ Production
 
 ```bash
 npm run build
@@ -72,42 +72,56 @@ npm run preview
 
 ---
 
-## 📁 Project Structure
+## 📁 โครงสร้างโปรเจกต์
 
 ```
 src/
 ├── components/
-│   ├── layout/          # Navbar
+│   ├── layout/          # Navbar (แถบนำทาง)
 │   ├── chat/            # ChatMessage, ChatInput, ModelSelector
-│   ├── upload/          # UploadZone (drag & drop)
+│   ├── upload/          # UploadZone (ลาก-วาง PDF)
 │   ├── knowledge/       # KnowledgeTabs, Summary, Mindmap
 │   ├── arena/           # ArenaChat, VoteButton
-│   └── ui/              # Toast notification system
+│   └── ui/              # ระบบ Toast Notification
 ├── pages/
-│   ├── Workspace.jsx    # Main document + chat page
-│   └── ModelArena.jsx   # Model comparison page
+│   ├── Workspace.jsx    # หน้าหลัก (เอกสาร + แชท)
+│   └── ModelArena.jsx   # หน้าเปรียบเทียบโมเดล
 ├── services/
-│   └── api.js           # Axios API client
+│   └── api.js           # Axios API client (3 endpoints + polling)
 ├── stores/
-│   ├── themeStore.js    # Dark/light mode state
-│   ├── documentStore.js # Document & knowledge state
-│   └── chatStore.js     # Chat & arena state
+│   ├── themeStore.js    # สถานะ Dark/Light mode
+│   ├── documentStore.js # สถานะเอกสารและความรู้
+│   └── chatStore.js     # สถานะแชทและสนามประลอง
 ├── hooks/
-│   ├── useUpload.js     # File upload logic
-│   └── useChat.js       # Chat & arena logic
+│   ├── useUpload.js     # Logic อัปโหลดไฟล์ + Polling สถานะ
+│   └── useChat.js       # Logic แชท + แชทสนามประลอง
 ├── layouts/
-│   └── MainLayout.jsx   # App shell with Navbar + Toast
-├── App.jsx              # Routes
+│   └── MainLayout.jsx   # โครง App (Navbar + Toast)
+├── App.jsx              # เส้นทาง Routes
 ├── main.jsx             # Entry point
-└── index.css            # Tailwind + custom styles
+└── index.css            # Tailwind + Custom styles
 ```
 
 ---
 
-## 📖 Documentation
+## 📖 เอกสารเพิ่มเติม
 
-- [Architecture Guide](./docs/architecture.md) — Component hierarchy & state management
-- [API Specifications](./docs/api-specs.md) — Request/Response JSON contracts for backend team
+- [คู่มือสถาปัตยกรรม](./docs/architecture.md) — โครงสร้าง Component และ State Management
+- [ข้อกำหนด API](./docs/api-specs.md) — สัญญา JSON Request/Response สำหรับทีม Backend
+
+---
+
+## 🔗 การเชื่อมต่อกับ Backend
+
+โปรเจกต์นี้ออกแบบให้ทำงานร่วมกับ Backend ที่รันบน **Google Colab + Ollama + Ngrok**
+
+1. รัน Backend notebook บน Colab  
+2. คัดลอก Ngrok URL (เช่น `https://xxxx.ngrok-free.app`)  
+3. ตั้งค่าใน `.env`:
+   ```
+   VITE_API_BASE_URL=https://xxxx.ngrok-free.app
+   ```
+4. รัน `npm run dev`
 
 ---
 

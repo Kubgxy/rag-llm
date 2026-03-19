@@ -1,14 +1,17 @@
-# API Specifications
+# ข้อกำหนด API (API Specifications)
 
-This document describes the exact JSON request/response contracts the frontend expects from the backend. The backend team should implement these endpoints to match.
+เอกสารนี้อธิบาย JSON Request/Response ที่ Frontend คาดหวังจาก Backend อย่างละเอียด  
+เพื่อให้ทีม Backend (FastAPI + Ollama) ไปทำ API มารองรับได้ถูกต้อง
 
-**Base URL**: Configured via `VITE_API_BASE_URL` environment variable (default: `http://localhost:8000`)
+**Base URL**: ตั้งค่าผ่าน `VITE_API_BASE_URL` ใน `.env` (ค่าเริ่มต้น: `http://localhost:8000`)
+
+> **หมายเหตุ**: Frontend ส่ง Header `ngrok-skip-browser-warning: true` ในทุก Request เพื่อข้ามหน้าเตือนของ Ngrok โดยอัตโนมัติ
 
 ---
 
-## 1. Upload Document
+## 1. อัปโหลดเอกสาร
 
-Upload a PDF file for processing. The backend should extract text, generate a summary, and produce a knowledge graph (mindmap).
+รับไฟล์ PDF แล้วส่งกลับ `filename` ทันที จากนั้น Backend จะประมวลผลเบื้องหลัง (Background Task)
 
 ### Request
 
@@ -17,79 +20,118 @@ POST /upload
 Content-Type: multipart/form-data
 ```
 
-| Field | Type | Required | Description |
+| Field | Type | จำเป็น | คำอธิบาย |
 |---|---|---|---|
-| `file` | `File` (binary) | ✅ | PDF file to process |
+| `file` | `File` (binary) | ✅ | ไฟล์ PDF ที่ต้องการอัปโหลด |
 
 ### Response — `200 OK`
 
 ```json
 {
-  "summary": "# Document Summary\n\nThis document covers...\n\n## Key Points\n- Point A\n- Point B\n- Point C",
-  "nodes": [
-    {
-      "id": "node-0",
-      "label": "Main Topic",
-      "position": { "x": 250, "y": 0 },
-      "type": "input"
-    },
-    {
-      "id": "node-1",
-      "label": "Sub-topic A",
-      "position": { "x": 100, "y": 120 }
-    },
-    {
-      "id": "node-2",
-      "label": "Sub-topic B",
-      "position": { "x": 400, "y": 120 }
-    }
-  ],
-  "edges": [
-    {
-      "id": "edge-0",
-      "source": "node-0",
-      "target": "node-1",
-      "animated": true
-    },
-    {
-      "id": "edge-1",
-      "source": "node-0",
-      "target": "node-2",
-      "animated": true
-    }
-  ]
+  "status": "success",
+  "message": "อัปโหลดสำเร็จ กำลังเรียนรู้และทำสรุปเบื้องหลัง...",
+  "filename": "document.pdf"
 }
 ```
 
-### Response Fields
-
-| Field | Type | Description |
+| Field | Type | คำอธิบาย |
 |---|---|---|
-| `summary` | `string` | Markdown-formatted document summary |
-| `nodes` | `Array<Node>` | Array of mindmap nodes |
-| `nodes[].id` | `string` | Unique node identifier |
-| `nodes[].label` | `string` | Display text for the node |
-| `nodes[].position` | `{x: number, y: number}` | Coordinates for node placement |
-| `nodes[].type` | `string` (optional) | ReactFlow node type (`'input'`, `'output'`, `'default'`) |
-| `edges` | `Array<Edge>` | Array of connections between nodes |
-| `edges[].id` | `string` | Unique edge identifier |
-| `edges[].source` | `string` | Source node ID |
-| `edges[].target` | `string` | Target node ID |
-| `edges[].animated` | `boolean` (optional) | Whether the edge is animated (default `true`) |
-
-### Error Response — `4xx / 5xx`
-
-```json
-{
-  "detail": "Unsupported file type. Only PDF files are accepted."
-}
-```
+| `status` | `string` | `"success"` เมื่ออัปโหลดผ่าน |
+| `message` | `string` | ข้อความแจ้งสถานะ |
+| `filename` | `string` | ชื่อไฟล์ที่บันทึกบน Server (ใช้สำหรับ Polling) |
 
 ---
 
-## 2. Single Model Chat
+## 2. ตรวจสอบสถานะเอกสาร (Polling)
 
-Send a user question to a specific AI model for RAG-powered question answering.
+Frontend จะยิง Request มาถามทุก 5 วินาทีว่า Backend ประมวลผลเสร็จหรือยัง
+
+### Request
+
+```
+GET /document/status/{filename}
+```
+
+| Parameter | Type | คำอธิบาย |
+|---|---|---|
+| `filename` | `string` (path) | ชื่อไฟล์ที่ได้จาก `/upload` |
+
+### Response — กำลังประมวลผล
+
+```json
+{
+  "status": "processing",
+  "summary": "",
+  "mindmap": {}
+}
+```
+
+### Response — ประมวลผลสำเร็จ
+
+```json
+{
+  "status": "completed",
+  "summary": "สรุปใจความสำคัญของเอกสาร:\n- ประเด็นที่ 1\n- ประเด็นที่ 2\n- ประเด็นที่ 3",
+  "mindmap": {
+    "nodes": [
+      {
+        "id": "1",
+        "data": { "label": "หัวข้อหลัก" },
+        "position": { "x": 250, "y": 0 }
+      },
+      {
+        "id": "2",
+        "data": { "label": "หัวข้อย่อย A" },
+        "position": { "x": 100, "y": 120 }
+      },
+      {
+        "id": "3",
+        "data": { "label": "หัวข้อย่อย B" },
+        "position": { "x": 400, "y": 120 }
+      }
+    ],
+    "edges": [
+      { "id": "e1-2", "source": "1", "target": "2" },
+      { "id": "e1-3", "source": "1", "target": "3" }
+    ]
+  }
+}
+```
+
+### Response — เกิดข้อผิดพลาด
+
+```json
+{
+  "status": "error",
+  "message": "ไม่สามารถอ่านไฟล์ PDF ได้"
+}
+```
+
+### Response — ไม่พบไฟล์
+
+```json
+{
+  "status": "not_found"
+}
+```
+
+| Field | Type | คำอธิบาย |
+|---|---|---|
+| `status` | `string` | `"processing"`, `"completed"`, `"error"`, หรือ `"not_found"` |
+| `summary` | `string` | สรุปเนื้อหาเอกสาร (มีเมื่อ completed) |
+| `mindmap` | `object` | ข้อมูล Mindmap ที่มี `nodes` และ `edges` |
+| `mindmap.nodes[].id` | `string` | ID ของ Node |
+| `mindmap.nodes[].data.label` | `string` | ข้อความที่แสดงบน Node |
+| `mindmap.nodes[].position` | `{x, y}` | ตำแหน่ง (ถ้าไม่มี Frontend จะจัดเอง) |
+| `mindmap.edges[].source` | `string` | Node ต้นทาง |
+| `mindmap.edges[].target` | `string` | Node ปลายทาง |
+| `message` | `string` | ข้อความข้อผิดพลาด (มีเมื่อ error) |
+
+---
+
+## 3. แชทโมเดลเดียว
+
+ส่งคำถามไปยังโมเดล AI ตัวเดียว ใช้ RAG ตอบคำถามจากเอกสาร
 
 ### Request
 
@@ -100,46 +142,48 @@ Content-Type: application/json
 
 ```json
 {
-  "query": "What are the main findings of the document?",
-  "model_name": "typhoon-2.5"
+  "query": "เอกสารนี้เกี่ยวกับอะไร?",
+  "model_name": "scb10x/typhoon2.5-qwen3-4b"
 }
 ```
 
-| Field | Type | Required | Description |
+| Field | Type | จำเป็น | คำอธิบาย |
 |---|---|---|---|
-| `query` | `string` | ✅ | User's question |
-| `model_name` | `string` | ✅ | Model identifier (see Available Models) |
+| `query` | `string` | ✅ | คำถามของผู้ใช้ |
+| `model_name` | `string` | ✅ | ID ของโมเดล (ดูรายชื่อด้านล่าง) |
 
-### Response — `200 OK`
+### Response — สำเร็จ
 
 ```json
 {
-  "answer": "Based on the document, the main findings are:\n\n1. **Finding A** — Description...\n2. **Finding B** — Description...\n\n> The document emphasizes...",
-  "sources": [
-    {
-      "page": 3,
-      "text": "Relevant excerpt from the document..."
-    },
-    {
-      "page": 7,
-      "text": "Another relevant excerpt..."
-    }
-  ]
+  "query": "เอกสารนี้เกี่ยวกับอะไร?",
+  "answer": "จากเอกสาร พบว่าเนื้อหาสำคัญประกอบด้วย...\n\n1. **ประเด็นที่ 1** — ...\n2. **ประเด็นที่ 2** — ...",
+  "model": "scb10x/typhoon2.5-qwen3-4b"
 }
 ```
 
-| Field | Type | Description |
+### Response — ผิดพลาด (Backend-level)
+
+```json
+{
+  "status": "error",
+  "message": "Model not found or failed to load"
+}
+```
+
+| Field | Type | คำอธิบาย |
 |---|---|---|
-| `answer` | `string` | Markdown-formatted answer from the model |
-| `sources` | `Array<Source>` (optional) | Retrieved document chunks used for the answer |
-| `sources[].page` | `number` | Page number of the source |
-| `sources[].text` | `string` | Text excerpt from the source |
+| `query` | `string` | คำถามเดิมที่ส่งไป |
+| `answer` | `string` | คำตอบ Markdown จาก AI |
+| `model` | `string` | ชื่อโมเดลที่ใช้ตอบ |
+| `status` | `string` | `"error"` เมื่อเกิดข้อผิดพลาด |
+| `message` | `string` | ข้อความข้อผิดพลาด |
 
 ---
 
-## 3. Compare Models (Arena)
+## 4. เปรียบเทียบโมเดล (สนามประลอง)
 
-Send the same question to multiple models simultaneously for comparison.
+ส่งคำถามเดียวกันไปยัง 2 โมเดลพร้อมกัน (Backend จะรันทีละตัวเพื่อประหยัด RAM)
 
 ### Request
 
@@ -150,71 +194,87 @@ Content-Type: application/json
 
 ```json
 {
-  "query": "Explain the methodology described in the paper",
-  "models": ["typhoon-2.5", "chinda"]
+  "query": "อธิบาย Methodology ที่ใช้ในเอกสาร",
+  "models": ["scb10x/typhoon2.5-qwen3-4b", "iapp/chinda-qwen3-4b"]
 }
 ```
 
-| Field | Type | Required | Description |
+| Field | Type | จำเป็น | คำอธิบาย |
 |---|---|---|---|
-| `query` | `string` | ✅ | User's question |
-| `models` | `string[]` | ✅ | Array of exactly 2 model IDs to compare |
+| `query` | `string` | ✅ | คำถามของผู้ใช้ |
+| `models` | `string[]` | ✅ | Array ที่มี 2 model IDs |
 
-### Response — `200 OK`
+### Response — สำเร็จ
 
 ```json
 {
-  "responses": [
-    {
-      "model": "typhoon-2.5",
-      "answer": "The methodology involves...\n\n### Steps\n1. Data collection\n2. Analysis\n3. Synthesis"
-    },
-    {
-      "model": "chinda",
-      "answer": "According to the document, the methodology consists of...\n\n- **Phase 1**: Initial assessment\n- **Phase 2**: Deep analysis"
-    }
-  ]
+  "query": "อธิบาย Methodology ที่ใช้ในเอกสาร",
+  "results": {
+    "scb10x/typhoon2.5-qwen3-4b": "จากเอกสาร Methodology ประกอบด้วย...\n\n### ขั้นตอน\n1. เก็บรวบรวมข้อมูล\n2. วิเคราะห์\n3. สังเคราะห์",
+    "iapp/chinda-qwen3-4b": "ตามเอกสาร Methodology แบ่งออกเป็น...\n\n- **Phase 1**: การประเมินเบื้องต้น\n- **Phase 2**: การวิเคราะห์เชิงลึก"
+  }
 }
 ```
 
-| Field | Type | Description |
+### Response — ผิดพลาด (Backend-level)
+
+```json
+{
+  "status": "error",
+  "message": "Failed to load model"
+}
+```
+
+| Field | Type | คำอธิบาย |
 |---|---|---|
-| `responses` | `Array<ModelResponse>` | One response per requested model |
-| `responses[].model` | `string` | Model identifier matching the request |
-| `responses[].answer` | `string` | Markdown-formatted answer from this model |
+| `query` | `string` | คำถามเดิม |
+| `results` | `object` | Object ที่ key เป็น model ID และ value เป็นคำตอบ Markdown |
+| `results["model_id"]` | `string` | คำตอบ Markdown จากโมเดลนั้นๆ |
+
+> ⚠️ **สำคัญ**: `results` เป็น **Object** (ไม่ใช่ Array) โดย key ตรงกับ model ID ที่ส่งไปใน `models`
 
 ---
 
-## Available Model IDs
+## รายชื่อโมเดลที่รองรับ
 
-These are the models currently configured in the frontend. The backend should accept these identifiers:
+โมเดลเหล่านี้ตั้งค่าไว้ใน Frontend และต้อง Pull ไว้บน Ollama ก่อนใช้งาน:
 
-| ID | Display Name |
-|---|---|
-| `typhoon-2.5` | Typhoon 2.5 |
-| `chinda` | Chinda |
-| `llama-3.1` | LLaMA 3.1 |
-| `gemma-2` | Gemma 2 |
+| Model ID | ชื่อแสดงผล | หมายเหตุ |
+|---|---|---|
+| `scb10x/typhoon2.5-qwen3-4b` | Typhoon 2.5 (4B) | โมเดลภาษาไทยจาก SCB 10X |
+| `iapp/chinda-qwen3-4b` | Chinda (4B) | โมเดลภาษาไทยจาก iApp |
+| `llama-3.1` | LLaMA 3.1 | สำรอง (ต้อง Pull ก่อน) |
+| `gemma-2` | Gemma 2 | สำรอง (ต้อง Pull ก่อน) |
 
 ---
 
-## Error Handling
+## การจัดการข้อผิดพลาด
 
-All error responses should follow this format:
+Backend มี 2 รูปแบบการส่ง Error:
 
+### 1. HTTP Error (4xx, 5xx)
 ```json
 {
-  "detail": "Human-readable error message"
+  "detail": "ข้อความข้อผิดพลาดที่อ่านได้"
 }
 ```
 
-The frontend will display the `detail` field in a toast notification. If `detail` is not present, it falls back to `message`, then to the HTTP error message.
+### 2. Application-level Error (HTTP 200 แต่มี status === "error")
+```json
+{
+  "status": "error",
+  "message": "Model not found or failed to load"
+}
+```
 
-| HTTP Status | Description |
+Frontend จัดการทั้ง 2 กรณีโดยแสดง Toast Notification ภาษาไทย
+
+| HTTP Status | คำอธิบาย |
 |---|---|
-| `400` | Bad request (invalid parameters) |
-| `413` | File too large |
-| `415` | Unsupported file type |
-| `422` | Validation error |
-| `500` | Internal server error |
-| `503` | Model service unavailable |
+| `200` | สำเร็จ หรือ Application-level Error |
+| `400` | Request ไม่ถูกต้อง |
+| `413` | ไฟล์ใหญ่เกินไป |
+| `415` | ประเภทไฟล์ไม่รองรับ |
+| `422` | Validation Error |
+| `500` | Server Error |
+| `503` | Model ไม่พร้อมให้บริการ |

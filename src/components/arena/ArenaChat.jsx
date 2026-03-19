@@ -11,10 +11,10 @@ export default function ArenaChat({ arenaMessages, onVote }) {
             <span className="text-3xl">⚔️</span>
           </div>
           <p className="text-sm font-medium text-surface-500 dark:text-surface-500">
-            Select two models and start a battle!
+            เลือกสองโมเดลแล้วเริ่มประลอง!
           </p>
           <p className="text-xs text-surface-400 mt-1">
-            Both models will answer your question side by side
+            ทั้งสองโมเดลจะตอบคำถามของคุณเคียงข้างกัน
           </p>
         </div>
       </div>
@@ -43,7 +43,7 @@ export default function ArenaChat({ arenaMessages, onVote }) {
                 <div className="px-4 py-2.5 bg-blue-500/10 border-b border-surface-200 dark:border-surface-700 flex items-center gap-2">
                   <Bot className="w-4 h-4 text-blue-500" />
                   <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                    Model A
+                    โมเดล A
                   </span>
                 </div>
                 <div className="p-4 prose-chat text-sm text-surface-800 dark:text-surface-200">
@@ -62,7 +62,7 @@ export default function ArenaChat({ arenaMessages, onVote }) {
                 <div className="px-4 py-2.5 bg-emerald-500/10 border-b border-surface-200 dark:border-surface-700 flex items-center gap-2">
                   <Bot className="w-4 h-4 text-emerald-500" />
                   <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                    Model B
+                    โมเดล B
                   </span>
                 </div>
                 <div className="p-4 prose-chat text-sm text-surface-800 dark:text-surface-200">
