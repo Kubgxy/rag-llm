@@ -25,18 +25,22 @@ export default function UploadZone() {
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        // 👈 2. ป้องกันไม่ให้กดเปิดหน้าต่างเลือกไฟล์ซ้ำตอนกำลังโหลดอยู่
         onClick={() => !isUploading && fileInputRef.current?.click()} 
         className={`
-          relative rounded-2xl border-2 border-dashed p-8 text-center
-          transition-all duration-300 group
+          relative rounded-3xl border-2 border-dashed p-10 text-center
+          transition-all duration-300 group overflow-hidden
           ${isDragging
-            ? 'drag-active border-primary-500 bg-primary-500/10 scale-[1.02]'
-            : 'border-surface-300 dark:border-surface-700 hover:border-primary-400 hover:bg-primary-500/5'
+            ? 'border-primary-500 bg-primary-500/10 scale-[1.02]'
+            : 'border-surface-300 dark:border-surface-700 hover:border-primary-400 hover:bg-surface-50 dark:hover:bg-surface-900/50 hover:shadow-lg hover:shadow-primary-500/5'
           }
           ${isUploading ? 'cursor-default border-primary-500/30 bg-primary-500/5' : 'cursor-pointer'}
         `}
       >
+        {/* Subtle background glow effect on hover */}
+        {!isUploading && !isDragging && (
+           <div className="absolute inset-0 bg-gradient-to-tr from-primary-500/0 via-primary-500/0 to-primary-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        )}
+
         <input
           ref={fileInputRef}
           type="file"
@@ -48,26 +52,23 @@ export default function UploadZone() {
         />
 
         {isUploading ? (
-          // ⏳ UI ตอนกำลังโหลด (ปรับใหม่ให้ดูเคลื่อนไหวตลอดเวลา)
-          <div className="flex flex-col items-center gap-4 py-2">
+          <div className="flex flex-col items-center gap-5 py-4 relative z-10">
             <div className="relative">
-              <Loader2 className="w-12 h-12 text-primary-500 animate-spin" />
-              {/* เพิ่มไอคอนวิ้งๆ ให้ดูเป็น AI มากขึ้น */}
-              <Sparkles className="w-5 h-5 text-primary-400 absolute -top-1 -right-1 animate-pulse" /> 
+              <div className="absolute inset-0 bg-primary-500/20 rounded-full blur-xl animate-pulse" />
+              <Loader2 className="w-14 h-14 text-primary-500 animate-spin relative z-10" />
+              <Sparkles className="w-6 h-6 text-accent-400 absolute -top-2 -right-2 animate-bounce" /> 
             </div>
             
-            <div className="space-y-1.5">
-              {/* 👈 3. นำ progressText มาแสดงตรงนี้ ข้อความจะเปลี่ยนไปเรื่อยๆ */}
-              <p className="text-sm font-semibold text-primary-600 dark:text-primary-400 animate-pulse">
+            <div className="space-y-2">
+              <p className="text-base font-medium text-primary-600 dark:text-primary-400 animate-pulse">
                 {progressText || "กำลังประมวลผลเอกสาร..."}
               </p>
-              <p className="text-xs text-surface-500 dark:text-surface-400">
-                โปรดอย่าปิดหน้านี้ ระบบอาจใช้เวลา 1-3 นาที
+              <p className="text-sm text-surface-500 dark:text-surface-400">
+                โปรดอย่าปิดหน้านี้ ระบบอาจใช้เวลาสักครู่
               </p>
             </div>
 
-            {/* 👈 4. แถบโหลดแบบวิ่งไปมา (Indeterminate Progress Bar) */}
-            <div className="w-64 h-1.5 bg-surface-200 dark:bg-surface-800 rounded-full overflow-hidden mt-2 relative">
+            <div className="w-72 h-1.5 bg-surface-200 dark:bg-surface-800 rounded-full overflow-hidden mt-3 relative">
               <div 
                 className="absolute top-0 bottom-0 left-0 w-1/2 bg-gradient-to-r from-transparent via-primary-500 to-transparent rounded-full"
                 style={{ 
@@ -83,16 +84,15 @@ export default function UploadZone() {
             </div>
           </div>
         ) : (
-          // 📥 UI ตอนปกติ
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-primary-500/10 flex items-center justify-center group-hover:bg-primary-500/20 transition-colors">
-              <Upload className="w-7 h-7 text-primary-500" />
+          <div className="flex flex-col items-center gap-4 relative z-10">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-surface-100 to-surface-200 dark:from-surface-800 dark:to-surface-900 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 group-hover:shadow-md transition-all duration-300">
+              <Upload className="w-8 h-8 text-surface-600 dark:text-surface-400 group-hover:text-primary-500 transition-colors" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-surface-800 dark:text-surface-200">
+              <p className="text-base font-semibold text-surface-900 dark:text-white">
                 คลิกเพื่อเลือกไฟล์ PDF หรือลากไฟล์มาวาง
               </p>
-              <p className="text-xs text-surface-500 dark:text-surface-500 mt-1">
+              <p className="text-sm text-surface-500 dark:text-surface-400 mt-1.5">
                 รองรับไฟล์ PDF ขนาดไม่เกิน 50 MB
               </p>
             </div>
@@ -102,22 +102,26 @@ export default function UploadZone() {
 
       {/* Uploaded files list */}
       {documents.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-surface-500 dark:text-surface-500 uppercase tracking-wider">
-            เอกสารที่อัปโหลดแล้ว
+        <div className="space-y-2.5">
+          <p className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-widest ml-1">
+            เอกสารของคุณ
           </p>
           {documents.map((doc, i) => (
             <div
               key={i}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl bg-surface-100 dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700"
+              className="flex items-center gap-4 px-5 py-3.5 rounded-2xl bg-white dark:bg-surface-900/50 border border-surface-200 dark:border-surface-800 shadow-sm hover:shadow-md transition-shadow"
             >
-              <FileText className="w-4 h-4 text-primary-500 shrink-0" />
-              <span className="text-sm text-surface-700 dark:text-surface-300 truncate flex-1">
-                {doc.name}
-              </span>
-              <span className="text-xs text-surface-400">
-                {new Date(doc.uploadedAt).toLocaleTimeString()}
-              </span>
+              <div className="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center shrink-0">
+                 <FileText className="w-5 h-5 text-primary-500" />
+              </div>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="text-sm font-medium text-surface-900 dark:text-surface-100 truncate">
+                  {doc.name}
+                </span>
+                <span className="text-xs text-surface-500 dark:text-surface-400">
+                  {new Date(doc.uploadedAt).toLocaleTimeString()}
+                </span>
+              </div>
             </div>
           ))}
         </div>
