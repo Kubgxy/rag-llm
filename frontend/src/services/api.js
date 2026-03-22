@@ -11,14 +11,44 @@ const api = axios.create({
 
 // Request interceptor (can add auth tokens later)
 api.interceptors.request.use(
-  (config) => config,
-  (error) => Promise.reject(error)
+  (config) => {
+    console.log('🔵 [API Request]', {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      baseURL: config.baseURL,
+      fullURL: `${config.baseURL}${config.url}`,
+      data: config.data,
+      headers: config.headers
+    })
+    return config
+  },
+  (error) => {
+    console.error('❌ [API Request Error]', error)
+    return Promise.reject(error)
+  }
 )
 
 // Response interceptor for unified error handling
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('✅ [API Response]', {
+      status: response.status,
+      statusText: response.statusText,
+      url: response.config.url,
+      data: response.data
+    })
+    return response
+  },
   (error) => {
+    console.error('❌ [API Error]', {
+      message: error.message,
+      code: error.code,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      url: error.config?.url,
+      data: error.response?.data
+    })
+
     const message =
       error.response?.data?.detail ||
       error.response?.data?.message ||
@@ -32,10 +62,12 @@ api.interceptors.response.use(
  * Upload a PDF document
  * POST /upload
  * @param {File} file - PDF file to upload
+ * @param {string} sessionId - Session ID for multi-session support
  */
-export const uploadDocument = async (file) => {
+export const uploadDocument = async (file, sessionId) => {
   const formData = new FormData()
   formData.append('file', file)
+  formData.append('session_id', sessionId)
 
   const { data } = await api.post('/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
@@ -45,22 +77,27 @@ export const uploadDocument = async (file) => {
 
 /**
  * [เพิ่มใหม่] Check document processing status
- * GET /document/status/{filename}
- * @param {string} filename 
+ * GET /upload/status/{session_id}/{filename}
+ * @param {string} sessionId - Session ID
+ * @param {string} filename
  */
-export const checkDocumentStatus = async (filename) => {
-  const { data } = await api.get(`/document/status/${filename}`)
+export const checkDocumentStatus = async (sessionId, filename) => {
+  const { data } = await api.get(`/upload/status/${sessionId}/${filename}`)
   return data
 }
 
 /**
  * Single-model chat
  * POST /chat/single
+ * @param {string} query - User query
+ * @param {string} modelName - Model name to use
+ * @param {string} sessionId - Session ID
  */
-export const chatSingle = async (query, modelName) => {
+export const chatSingle = async (query, modelName, sessionId) => {
   const { data } = await api.post('/chat/single', {
     query,
     model_name: modelName,
+    session_id: sessionId,
   })
   return data
 }

@@ -1,6 +1,9 @@
 import { useCallback } from 'react'
 import { chatSingle, chatCompare } from '../services/api.js'
 import { useChatStore } from '../stores/chatStore.js'
+import { useSessionStore } from '../stores/sessionStore.js'
+import { useChatHistoryStore } from '../stores/chatHistoryStore.js'
+import { useDocumentStore } from '../stores/documentStore.js'
 import { useToast } from '../components/ui/Toast.jsx'
 
 export function useChat() {
@@ -12,7 +15,22 @@ export function useChat() {
     addAssistantMessage,
     setLoading,
   } = useChatStore()
+  const { getSessionId } = useSessionStore()
   const { addToast } = useToast()
+
+  const syncToHistory = (sessionId) => {
+    // This timeout ensures Zustand state updates have completed before syncing
+    setTimeout(() => {
+      const currentMessages = useChatStore.getState().messages;
+      const docStore = useDocumentStore.getState();
+      useChatHistoryStore.getState().saveSession(sessionId, currentMessages, {
+        documents: docStore.documents,
+        summary: docStore.summary,
+        mindmapNodes: docStore.mindmapNodes,
+        mindmapEdges: docStore.mindmapEdges
+      });
+    }, 100);
+  };
 
   const sendMessage = useCallback(
     async (query) => {
@@ -21,8 +39,13 @@ export function useChat() {
       addUserMessage(query)
       setLoading(true)
 
+      let sessionId;
       try {
-        const data = await chatSingle(query, selectedModel)
+        // ดึง session_id ปัจจุบัน
+        sessionId = getSessionId()
+        syncToHistory(sessionId)
+
+        const data = await chatSingle(query, selectedModel, sessionId)
         // Backend อาจส่ง { status: "error", message: "..." } กลับมาแทน
         if (data.status === 'error') {
           addToast(data.message || 'โมเดลตอบกลับไม่สำเร็จ', 'error')
@@ -35,9 +58,10 @@ export function useChat() {
         addAssistantMessage('⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง')
       } finally {
         setLoading(false)
+        if (sessionId) syncToHistory(sessionId);
       }
     },
-    [isLoading, selectedModel, addUserMessage, addAssistantMessage, setLoading, addToast]
+    [isLoading, selectedModel, addUserMessage, addAssistantMessage, setLoading, addToast, getSessionId]
   )
 
   return { messages, isLoading, sendMessage }

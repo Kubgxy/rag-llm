@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# FastAPI / Uvicorn
+*.log
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+
+# Uploaded files
+uploaded_docs/
+*.pdf
+
+# Qdrant database
+qdrant_local_data/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Model cache
+.cache/
+models/
+
+# pytest
+.pytest_cache/
+
+# mypy
+.mypy_cache/

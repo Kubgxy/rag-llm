@@ -1,0 +1,147 @@
+# [Cell 3] ระบบ API แบบแยก Session (Multi-Chat Isolation)
+import os
+import shutil
+import asyncio
+import pypdf
+import pytesseract
+import json
+import re
+from pdf2image import convert_from_path
+from fastapi import FastAPI, UploadFile, File, BackgroundTasks, Form
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List
+from llama_index.core import Document, VectorStoreIndex, StorageContext
+from llama_index.vector_stores.qdrant import QdrantVectorStore
+from llama_index.llms.ollama import Ollama
+import qdrant_client
+import nest_asyncio
+from pyngrok import ngrok
+import uvicorn
+
+!pkill ollama
+time.sleep(2)
+print("🚀 กำลังสตาร์ท Ollama Server...")
+subprocess.Popen(["ollama", "serve"])
+time.sleep(5)
+
+app = FastAPI(title="NotebookLM Clone API (Multi-Session)")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# เก็บสถานะแยกตาม Session
+doc_status = {}
+
+# ฟังก์ชันดึง/สร้าง กล่อง Qdrant ประจำ Session
+def get_session_storage(session_id: str):
+    client = qdrant_client.QdrantClient(path="./qdrant_local_data")
+    # ใช้ session_id เป็นชื่อ collection เลย (ตัว문자ต้องเป็นตัวเล็กและขีดล่าง)
+    collection_name = f"chat_{session_id.lower().replace('-', '_')}"
+    vector_store = QdrantVectorStore(client=client, collection_name=collection_name)
+    return StorageContext.from_defaults(vector_store=vector_store)
+
+# ฟังก์ชัน OCR (คงเดิม)
+def extract_text_smart(file_path):
+    text = ""
+    try:
+        reader = pypdf.PdfReader(file_path)
+        for page in reader.pages:
+            extracted = page.extract_text()
+            if extracted: text += extracted + "\n"
+    except: pass
+    if len(text.strip()) < 100:
+        try:
+            images = convert_from_path(file_path, dpi=300)
+            for img in images: text += pytesseract.image_to_string(img, lang='tha+eng') + "\n"
+        except: pass
+    return text
+
+# Background Task ที่รับ session_id เข้ามาด้วย
+def process_document_background(file_path: str, filename: str, session_id: str):
+    task_id = f"{session_id}_{filename}"
+    try:
+        extracted_text = extract_text_smart(file_path)
+        doc = Document(text=extracted_text, metadata={"file_name": filename})
+        
+        # 👈 ดึง Storage ของ Session นี้มาใช้
+        storage_context = get_session_storage(session_id)
+        index = VectorStoreIndex.from_documents([doc], storage_context=storage_context)
+        
+        llm_summarizer = Ollama(model="iapp/chinda-qwen3-4b", request_timeout=600.0, additional_kwargs={"num_ctx": 4096})
+        engine = index.as_query_engine(llm=llm_summarizer, similarity_top_k=2)
+        
+        summary_res = engine.query("สรุปใจความสำคัญของเอกสารนี้เป็นภาษาไทย สามารถปนภาษาอังกฤษได้หากเป็นหัวข้อสำคัญ")
+        mindmap_res = engine.query("สกัดข้อมูลเพื่อทำ Mindmap ตอบกลับมาเป็น JSON format ที่มี keys คือ 'nodes' และ 'edges' ห้ามอธิบายเพิ่ม")
+        
+        mindmap_json = {"nodes": [{"id": "1", "data": {"label": "แกะ Mindmap ไม่สำเร็จ"}}], "edges": []}
+        json_match = re.search(r'\{.*\}', str(mindmap_res), re.DOTALL)
+        if json_match:
+            try: mindmap_json = json.loads(json_match.group(0))
+            except: pass
+
+        doc_status[task_id] = {"status": "completed", "summary": str(summary_res), "mindmap": mindmap_json}
+        print(f"✅ ไฟล์ {filename} ประมวลผลเสร็จสมบูรณ์ ลงกล่อง {session_id}!")
+    except Exception as e:
+        doc_status[task_id] = {"status": "error", "message": str(e)}
+
+@app.post("/upload")
+async def upload_document(
+    background_tasks: BackgroundTasks, 
+    file: UploadFile = File(...),
+    session_id: str = Form(...) # 👈 รับ session_id แนบมากับไฟล์
+):
+    os.makedirs("uploaded_docs", exist_ok=True)
+    file_path = f"uploaded_docs/{session_id}_{file.filename}"
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    task_id = f"{session_id}_{file.filename}"
+    doc_status[task_id] = {"status": "processing", "summary": "", "mindmap": {}}
+    background_tasks.add_task(process_document_background, file_path, file.filename, session_id)
+    
+    return {"status": "success", "filename": file.filename, "session_id": session_id}
+
+@app.get("/document/status/{session_id}/{filename}")
+async def get_document_status(session_id: str, filename: str):
+    task_id = f"{session_id}_{filename}"
+    return doc_status.get(task_id, {"status": "not_found"})
+
+# อัปเดต Model ให้รับ session_id
+class SingleChatReq(BaseModel):
+    query: str
+    model_name: str
+    session_id: str # 👈
+
+@app.post("/chat/single")
+async def chat_single(req: SingleChatReq):
+    try:
+        # 👈 ดึง Storage ของ Session นี้มาเพื่อค้นหาคำตอบ
+        storage_context = get_session_storage(req.session_id)
+        index = VectorStoreIndex.from_vector_store(vector_store=storage_context.vector_store)
+        
+        dynamic_llm = Ollama(model=req.model_name, request_timeout=600.0, additional_kwargs={"num_ctx": 4096})
+        engine = index.as_query_engine(llm=dynamic_llm, similarity_top_k=2)
+        
+        ans = await asyncio.to_thread(engine.query, req.query)
+        return {"query": req.query, "answer": str(ans)}
+    except Exception as e: return {"status": "error", "message": str(e)}
+
+# --- เปิด Ngrok ---
+nest_asyncio.apply()
+NGROK_TOKEN = "3B6z594h3nMz5J6bYrJVXXF0Xuh_44KBV7bJJtmQ1heH2iCY8"
+ngrok.set_auth_token(NGROK_TOKEN)
+try: ngrok.kill()
+except: pass
+
+public_url = ngrok.connect(8000).public_url
+print(f"🚀 API ออนไลน์ที่: {public_url}")
+
+config = uvicorn.Config(app, host="0.0.0.0", port=8000, loop="asyncio")
+server = uvicorn.Server(config)
+await server.serve()
