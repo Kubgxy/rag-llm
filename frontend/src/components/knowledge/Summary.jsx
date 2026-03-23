@@ -43,7 +43,7 @@ export default function Summary() {
   const { sections = [], metadata = {} } = summary
 
   return (
-    <div className="overflow-y-auto max-h-[calc(100vh-22rem)] pr-2">
+    <div className="overflow-y-auto max-h-[calc(100vh-22rem)] pr-2 p-4">
       {/* Metadata (word count + time) */}
       {metadata?.wordCount && (
         <div className="text-xs text-surface-500 dark:text-surface-400 mb-4 pb-4 border-b border-surface-200 dark:border-surface-700">
@@ -55,7 +55,7 @@ export default function Summary() {
       )}
 
       {/* Sections */}
-      <div className="space-y-3">
+      <div className="space-y-3 mt-2">
         {sections && sections.length > 0 ? (
           sections.map((section) => (
             <SummarySection key={section.id} section={section} />

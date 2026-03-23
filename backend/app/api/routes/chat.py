@@ -60,10 +60,9 @@ async def suggest_title(request: ChatTitleRequest):
 
         # สร้าง prompt เพื่อให้ LLM generalize
         title_prompt = (
-            f"ให้ท่านสร้างชื่อเรื่องให้กับโครงการ/คำถาม ต่อไปนี้ "
-            f"ให้เป็นข้อความสั้นๆ 1-3 คำภาษาไทย เพียงชื่อเท่านั้น ไม่ต้องอธิบาย:\n\n"
-            f"คำถาม: {request.query}\n\n"
-            f"ชื่อเรื่อง: "
+            f"ให้สร้างชื่อเรื่องที่กระชับ 1-3 คำ ภาษาไทยเท่านั้น สำหรับคำถาม/หัวข้อต่อนี้:\n"
+            f"\"{request.query}\"\n"
+            f"ตอบเพียงชื่อเรื่องเท่านั้น ไม่มีตัวเลข ไม่มีคำอธิบาย:"
         )
 
         # ใช้ LLM ที่ specified หรือค่าเริ่มต้น
@@ -79,7 +78,9 @@ async def suggest_title(request: ChatTitleRequest):
             title_prompt
         )
 
-        title_text = str(response).strip()[:30]  # Max 30 chars
+        title_text = str(response).strip()
+        # Clean up: remove newlines, extra spaces, and take first 25 chars
+        title_text = ' '.join(title_text.split())[:25].strip()
         print(f"✅ [Title] สร้างชื่อสำเร็จ: {title_text}")
 
         return {"title": title_text}

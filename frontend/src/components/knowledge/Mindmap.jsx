@@ -70,19 +70,21 @@ export default function Mindmap() {
     data: { label: node.label || node.data?.label || `Node ${i}` },
     type: node.type || 'default',
     style: {
-      padding: '10px 15px',
+      padding: '12px 16px',
       borderRadius: '8px',
-      fontSize: '12px',
-      fontWeight: node.level === 0 ? '600' : '500',
+      fontSize: '13px',
+      fontWeight: node.level === 0 ? '700' : '600',
       backgroundColor:
         node.level === 0
           ? '#6366f1'
           : node.level === 1
           ? '#a855f7'
           : '#ec4899',
-      color: 'white',
-      border: 'none',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      color: '#ffffff',
+      border: '2px solid rgba(255,255,255,0.3)',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.25), 0 0 8px currentColor',
+      textShadow: '0 2px 4px rgba(0,0,0,0.4)',
+      zIndex: 10,
     }
   }))
 
@@ -110,7 +112,7 @@ export default function Mindmap() {
   }
 
   return (
-    <div className="w-full h-[400px] rounded-xl overflow-hidden border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900">
+    <div className="w-full h-[400px] rounded-xl overflow-hidden border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 relative">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -122,7 +124,7 @@ export default function Mindmap() {
       >
         <Background color="#6366f1" gap={24} size={1} />
         <Controls
-          className="!bg-white dark:!bg-surface-800 !border-surface-200 dark:!border-surface-700 !rounded-xl !shadow-lg"
+          className="!bg-white dark:!bg-surface-800 !border !border-surface-300 dark:!border-surface-600 !rounded-lg !shadow-md [&>button]:!bg-white [&>button]:dark:!bg-surface-700 [&>button]:border-b [&>button]:border-surface-200 [&>button]:dark:border-surface-600 [&>button]:!text-surface-900 [&>button]:dark:!text-white [&>button]:hover:!bg-surface-100 [&>button]:dark:hover:!bg-surface-600 [&>button:last-child]:border-b-0"
         />
       </ReactFlow>
     </div>

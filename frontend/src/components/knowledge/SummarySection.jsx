@@ -4,8 +4,17 @@ import ReactMarkdown from 'react-markdown'
 /**
  * SummarySection - แสดง summary section แต่ละอัน
  * รองรับ icon, title, content, styling
+ * สามารถซ่อน think tags ได้
  */
-export function SummarySection({ section }) {
+
+// Utility: Remove think tags from content
+function stripThinkingTags(content) {
+  if (!content) return content
+  // Remove <think>...</think> blocks (including newlines)
+  return content.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+}
+
+export function SummarySection({ section, showThinking = false }) {
   if (!section) return null
 
   const {
@@ -16,6 +25,9 @@ export function SummarySection({ section }) {
     type = 'overview',
     styling = {}
   } = section
+
+  // Clean content by removing thinking tags (unless showThinking is enabled)
+  const displayContent = showThinking ? content : stripThinkingTags(content)
 
   // Default styling based on type
   const getDefaultStyling = () => {
@@ -49,7 +61,7 @@ export function SummarySection({ section }) {
 
       {/* Content (markdown) */}
       <div className="section-content prose-chat prose dark:prose-invert prose-sm max-w-none text-slate-700 dark:text-slate-300 ml-11">
-        <ReactMarkdown>{content}</ReactMarkdown>
+        <ReactMarkdown>{displayContent}</ReactMarkdown>
       </div>
     </div>
   )

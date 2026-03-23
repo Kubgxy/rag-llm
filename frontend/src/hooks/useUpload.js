@@ -52,7 +52,7 @@ export function useUpload() {
               isChatUnlocked = true;
               setUploading(false); // เอาแถบโหลดหมุนๆ ออก
               setProgressText('');
-              
+
               // ใส่ข้อมูลหลอกๆ ให้หน้าเว็บเปิดห้องแชทได้
               setUploadResult({
                 fileName: file.name,
@@ -60,9 +60,8 @@ export function useUpload() {
                 nodes: [], edges: [],
               });
               addToast('เอกสารพร้อมแล้ว! คุณสามารถพิมพ์ถามได้ทันที 💬', 'success');
-              // ⚠️ สังเกตว่าตรงนี้ไม่มี clearInterval! ปล่อยให้มันทำงานต่อ
             }
-            
+
             // 🟢 จังหวะที่ 2: งานเบื้องหลังเสร็จหมดแล้ว
             else if (statusData.status === 'completed') {
               clearInterval(pollInterval); // หยุดการถามเซิร์ฟเวอร์
