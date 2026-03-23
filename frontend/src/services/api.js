@@ -114,4 +114,18 @@ export const chatCompare = async (query, models) => {
   return data
 }
 
+/**
+ * Suggest chat title from first user message
+ * POST /chat/suggest-title
+ * @param {string} query - First user message
+ * @param {string} modelName - Optional: model to use for title generation
+ */
+export const suggestTitle = async (query, modelName = 'typhoon-2.5') => {
+  const { data } = await api.post('/chat/suggest-title', {
+    query,
+    model_name: modelName,
+  })
+  return data
+}
+
 export default api

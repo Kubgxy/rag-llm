@@ -6,24 +6,26 @@ import KnowledgeTabs from '../components/knowledge/KnowledgeTabs.jsx'
 import ModelSelector from '../components/chat/ModelSelector.jsx'
 import ChatMessage from '../components/chat/ChatMessage.jsx'
 import ChatInput from '../components/chat/ChatInput.jsx'
+import CompareToggle from '../components/chat/CompareToggle.jsx'
 import { useChat } from '../hooks/useChat.js'
+import { useChatStore } from '../stores/chatStore.js'
 import { useDocumentStore } from '../stores/documentStore.js'
 import { useSessionStore } from '../stores/sessionStore.js'
 
 export default function Workspace() {
   const { sessionId } = useParams()
   const navigate = useNavigate()
-  
+
   // States & Hooks
   const { messages, isLoading, sendMessage } = useChat()
+  const { toggleThinkingExpanded } = useChatStore()
+  const { chatTitle } = useSessionStore()
   const { documents } = useDocumentStore()
   const chatEndRef = useRef(null)
 
-  // Layout state: toggles the right panel expansion
-  // true = 1:2:2 (Expanded right), false = 1:3:1 (Default right)
+  // Layout states
   const [isKnowledgeExpanded, setIsKnowledgeExpanded] = useState(false)
-
-  // Toggles for mobile view
+  const [isCompareMode, setIsCompareMode] = useState(false)
   const [showMobileLeft, setShowMobileLeft] = useState(false)
   const [showMobileRight, setShowMobileRight] = useState(false)
 
@@ -40,11 +42,11 @@ export default function Workspace() {
 
   return (
     <div className="flex flex-col h-full bg-surface-100 dark:bg-surface-950">
-      
+
       {/* Navbar for Workspace */}
       <header className="h-14 bg-white dark:bg-surface-900 border-b border-surface-200 dark:border-surface-800 flex items-center justify-between px-4 shrink-0 z-20 shadow-sm">
-        <div className="flex items-center gap-2">
-          <button 
+        <div className="flex items-center gap-2 flex-1">
+          <button
             onClick={() => navigate('/')}
             className="p-1.5 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg text-surface-500 transition-colors"
           >
@@ -53,19 +55,25 @@ export default function Workspace() {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
             <MessageSquare className="w-4 h-4 text-white" />
           </div>
-          <span className="font-semibold text-surface-900 dark:text-white hidden sm:block">
-            Chat Session
+          <span className="font-semibold text-surface-900 dark:text-white truncate">
+            {chatTitle || 'Chat Session'}
           </span>
         </div>
-        
+
+        {/* Toolbar: Model Selector + Compare Toggle */}
+        <div className="flex items-center gap-3">
+          <ModelSelector />
+          <CompareToggle isCompareMode={isCompareMode} onToggle={setIsCompareMode} />
+        </div>
+
         {/* Mobile toggles */}
-        <div className="flex md:hidden items-center gap-2">
-           <button onClick={() => setShowMobileLeft(!showMobileLeft)} className="p-2 text-surface-600">
-             <FileText className="w-5 h-5" />
-           </button>
-           <button onClick={() => setShowMobileRight(!showMobileRight)} className="p-2 text-surface-600">
-             <PanelRight className="w-5 h-5" />
-           </button>
+        <div className="flex md:hidden items-center gap-2 ml-3">
+          <button onClick={() => setShowMobileLeft(!showMobileLeft)} className="p-2 text-surface-600">
+            <FileText className="w-5 h-5" />
+          </button>
+          <button onClick={() => setShowMobileRight(!showMobileRight)} className="p-2 text-surface-600">
+            <PanelRight className="w-5 h-5" />
+          </button>
         </div>
       </header>
 
@@ -113,9 +121,6 @@ export default function Workspace() {
               <MessageSquare className="w-4 h-4 text-primary-500" />
               สนทนา
             </h2>
-            <div className="w-40">
-              <ModelSelector />
-            </div>
           </div>
 
           {/* Chat Messages */}
@@ -134,7 +139,11 @@ export default function Workspace() {
               </div>
             ) : (
               messages.map((msg, i) => (
-                <ChatMessage key={i} role={msg.role} content={msg.content} />
+                <ChatMessage
+                  key={msg.id || i}
+                  message={msg}
+                  onThinkingToggle={(messageId) => toggleThinkingExpanded(messageId)}
+                />
               ))
             )}
 

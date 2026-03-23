@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { chatSingle, chatCompare } from '../services/api.js'
+import { chatSingle, chatCompare, suggestTitle } from '../services/api.js'
 import { useChatStore } from '../stores/chatStore.js'
 import { useSessionStore } from '../stores/sessionStore.js'
 import { useChatHistoryStore } from '../stores/chatHistoryStore.js'
@@ -36,6 +36,7 @@ export function useChat() {
     async (query) => {
       if (!query.trim() || isLoading) return
 
+      const isFirstMessage = messages.length === 0
       addUserMessage(query)
       setLoading(true)
 
@@ -45,13 +46,40 @@ export function useChat() {
         sessionId = getSessionId()
         syncToHistory(sessionId)
 
+        // ถามคำถาม
         const data = await chatSingle(query, selectedModel, sessionId)
+
         // Backend อาจส่ง { status: "error", message: "..." } กลับมาแทน
         if (data.status === 'error') {
           addToast(data.message || 'โมเดลตอบกลับไม่สำเร็จ', 'error')
           addAssistantMessage('⚠️ เกิดข้อผิดพลาด: ' + (data.message || 'ไม่ทราบสาเหตุ'))
         } else {
-          addAssistantMessage(data.answer)
+          // Create message object with thinking support
+          const messageData = {
+            id: `msg-${Date.now()}-${Math.random()}`,
+            role: 'assistant',
+            content: data.answer,
+            thinking: data.thinking || null,
+            timestamp: Date.now(),
+            metadata: {
+              model: selectedModel,
+              thinkingExpanded: false
+            }
+          }
+          addAssistantMessage(messageData)
+        }
+
+        // If first message, suggest title
+        if (isFirstMessage) {
+          try {
+            const titleResponse = await suggestTitle(query, selectedModel)
+            if (titleResponse.title) {
+              useSessionStore.getState().setChatTitle(titleResponse.title)
+            }
+          } catch (err) {
+            console.warn('Failed to suggest title:', err)
+            // Don't fail the chat if title suggestion fails
+          }
         }
       } catch (err) {
         addToast(err.message || 'ไม่สามารถเชื่อมต่อกับ Server ได้', 'error')
@@ -61,7 +89,7 @@ export function useChat() {
         if (sessionId) syncToHistory(sessionId);
       }
     },
-    [isLoading, selectedModel, addUserMessage, addAssistantMessage, setLoading, addToast, getSessionId]
+    [isLoading, selectedModel, messages, addUserMessage, addAssistantMessage, setLoading, addToast, getSessionId]
   )
 
   return { messages, isLoading, sendMessage }
