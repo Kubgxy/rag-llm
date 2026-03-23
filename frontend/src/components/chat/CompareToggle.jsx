@@ -7,7 +7,7 @@ import { GitCompare } from 'lucide-react'
 export function CompareToggle({ isCompareMode, onToggle }) {
   return (
     <button
-      onClick={onToggle}
+      onClick={() => onToggle(!isCompareMode)}
       className={`compare-toggle px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
         isCompareMode
           ? 'bg-purple-600 text-white hover:bg-purple-700 shadow-lg'

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 import asyncio
+import re
 from app.schemas import ChatRequest, ChatResponse, ChatTitleRequest
 from app.services import llm_service
 
@@ -79,7 +80,8 @@ async def suggest_title(request: ChatTitleRequest):
         )
 
         title_text = str(response).strip()
-        # Clean up: remove newlines, extra spaces, and take first 25 chars
+        # Clean up: remove think tags, newlines, extra spaces, and take first 25 chars
+        title_text = re.sub(r'<think>.*?</think>', '', title_text, flags=re.DOTALL).strip()
         title_text = ' '.join(title_text.split())[:25].strip()
         print(f"✅ [Title] สร้างชื่อสำเร็จ: {title_text}")
 

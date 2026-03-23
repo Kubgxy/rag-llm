@@ -70,10 +70,10 @@ export default function Mindmap() {
     data: { label: node.label || node.data?.label || `Node ${i}` },
     type: node.type || 'default',
     style: {
-      padding: '12px 16px',
+      padding: node.level === 0 ? '16px 20px' : node.level === 1 ? '14px 18px' : '12px 16px',
       borderRadius: '8px',
-      fontSize: '13px',
-      fontWeight: node.level === 0 ? '700' : '600',
+      fontSize: node.level === 0 ? '15px' : node.level === 1 ? '14px' : '13px',
+      fontWeight: node.level === 0 ? '800' : node.level === 1 ? '700' : '600',
       backgroundColor:
         node.level === 0
           ? '#6366f1'
@@ -81,10 +81,13 @@ export default function Mindmap() {
           ? '#a855f7'
           : '#ec4899',
       color: '#ffffff',
-      border: '2px solid rgba(255,255,255,0.3)',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.25), 0 0 8px currentColor',
+      border: node.level === 0 ? '3px solid rgba(255,255,255,0.4)' : '2px solid rgba(255,255,255,0.3)',
+      boxShadow: node.level === 0
+        ? '0 6px 16px rgba(0,0,0,0.3), 0 0 12px rgba(99,102,241,0.5)'
+        : '0 4px 12px rgba(0,0,0,0.25), 0 0 8px currentColor',
       textShadow: '0 2px 4px rgba(0,0,0,0.4)',
-      zIndex: 10,
+      zIndex: node.level === 0 ? 20 : node.level === 1 ? 15 : 10,
+      minWidth: node.level === 0 ? '80px' : 'auto',
     }
   }))
 

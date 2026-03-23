@@ -1,6 +1,8 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
-export const useDocumentStore = create((set) => ({
+export const useDocumentStore = create(
+  persist((set) => ({
   documents: [],
   // Enhanced summary structure: { sections: [...], metadata: {...} }
   summary: null,
@@ -35,7 +37,8 @@ export const useDocumentStore = create((set) => ({
       : summary || null
 
     return set((state) => ({
-      documents: [...state.documents, { name: fileName, uploadedAt: new Date() }],
+      // 🔧 Fix: แทนที่เอกสารแทนการ append ทุกครั้ง
+      documents: [{ name: fileName, uploadedAt: new Date() }],
       summary: processedSummary,
       mindmapNodes: nodes || [],
       mindmapEdges: edges || [],
@@ -63,4 +66,14 @@ export const useDocumentStore = create((set) => ({
       mindmapEdges: [],
       uploadError: null,
     }),
-}))
+  }),
+  {
+    name: 'rag-document-storage', // ชื่อ key ใน localStorage
+    partialize: (state) => ({
+      documents: state.documents,
+      summary: state.summary,
+      mindmapNodes: state.mindmapNodes,
+      mindmapEdges: state.mindmapEdges
+    }), // เก็บได้อย่างไร documents,summary,mindmap
+  }
+))
