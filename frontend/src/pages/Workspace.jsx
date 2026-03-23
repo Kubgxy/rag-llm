@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ChevronLeft, MessageSquare, FileText } from 'lucide-react'
+import { ChevronLeft, MessageSquare, FileText, PanelRight } from 'lucide-react'
 import { useChat } from '../hooks/useChat.js'
 import { useChatStore } from '../stores/chatStore.js'
 import { useDocumentStore } from '../stores/documentStore.js'
