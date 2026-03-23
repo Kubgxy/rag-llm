@@ -1,4 +1,5 @@
 import asyncio
+import time
 from typing import Dict
 from llama_index.llms.ollama import Ollama
 from llama_index.core import VectorStoreIndex
@@ -49,15 +50,20 @@ class LLMService:
         Returns:
             Dict with 'thinking' (optional) and 'answer' keys
         """
+        start_time = time.time()
         print(f"💬 [Query] {session_id}: {query}")
 
         # ดึง Storage Context สำหรับ session นี้
+        t1 = time.time()
         storage_context = vector_store_service.get_session_storage(session_id)
+        print(f"   ⏱️ Get storage: {time.time() - t1:.2f}s")
 
         # สร้าง Index จาก Vector Store
+        t1 = time.time()
         index = VectorStoreIndex.from_vector_store(
             vector_store=storage_context.vector_store
         )
+        print(f"   ⏱️ Create index: {time.time() - t1:.2f}s")
 
         from llama_index.core import PromptTemplate
 
@@ -75,16 +81,22 @@ class LLMService:
         qa_template = PromptTemplate(QA_PROMPT_TMPL)
 
         # สร้าง Query Engine
+        t1 = time.time()
         llm = self.get_llm(model_name)
         query_engine = index.as_query_engine(
             llm=llm,
             similarity_top_k=settings.SIMILARITY_TOP_K,
             text_qa_template=qa_template
         )
+        print(f"   ⏱️ Create query engine: {time.time() - t1:.2f}s")
 
         # Query
         print(f"🤖 [LLM] กำลังคิดคำตอบด้วย {model_name}...")
+        t1 = time.time()
         response = await asyncio.to_thread(query_engine.query, query)
+        llm_time = time.time() - t1
+        print(f"   ⏱️ LLM response: {llm_time:.2f}s")
+
         response_text = str(response)
 
         # Extract thinking blocks from response
@@ -101,7 +113,8 @@ class LLMService:
         else:
             print(f"📝 [Response] ไม่มี thinking blocks")
 
-        print(f"✅ [Response] ตอบคำถามเรียบร้อย")
+        total_time = time.time() - start_time
+        print(f"✅ [Response] ตอบคำถามเรียบร้อย ({total_time:.2f}s total)")
         return {
             "thinking": thinking,
             "answer": answer
