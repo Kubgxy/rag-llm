@@ -2,7 +2,7 @@ import os
 import json
 import re
 import asyncio
-from typing import Dict
+from typing import Dict, List, Optional
 from llama_index.core import Document, VectorStoreIndex
 from app.config import settings
 from app.utils.ocr import extract_text_from_pdf
@@ -110,7 +110,7 @@ class DocumentProcessorService:
             return "ไม่สามารถสร้างสรุปได้"
 
     async def _generate_mindmap(self, index: VectorStoreIndex) -> Dict:
-        """สร้าง Mindmap JSON"""
+        """สร้าง Mindmap JSON พร้อม hierarchy structure"""
         try:
             llm = llm_service.get_llm(settings.DEFAULT_LLM_MODEL)
             query_engine = index.as_query_engine(
@@ -118,37 +118,122 @@ class DocumentProcessorService:
                 similarity_top_k=3
             )
 
-            prompt = """Extract mindmap data in ONLY valid JSON format.
-Example: {"nodes": [{"id": "1", "data": {"label": "topic"}}, {"id": "2", "data": {"label": "subtopic"}}], "edges": [{"id": "e1", "source": "1", "target": "2"}]}
-Do not say anything else. Return only JSON."""
+            # Request structured markdown hierarchy
+            prompt = """สรุปเนื้อหาเอกสารเป็น Mind Map ให้ mีหัวข้อหลัก 1 อัน แล้วแตกออกเป็นหัวข้อรองลงมา 3-4 อัน แต่ละหัวข้อก็แตกเป็นข้อย่อยๆ 2-3 อัน
+ใช้รูปแบบ Markdown ตามตัวอย่าง (เพียงชื่อหัวข้อเท่านั้น ไม่มีรายละเอียด):
+# หัวข้อหลัก
+## หัวข้อรองที่ 1
+### บรรทัดรายละเอียด 1.1
+### บรรทัดรายละเอียด 1.2
+## หัวข้อรองที่ 2
+### บรรทัดรายละเอียด 2.1
+
+ให้สร้างโครงสร้างนี้จากเนื้อหาเอกสาร:"""
 
             response = await asyncio.to_thread(query_engine.query, prompt)
+            hierarchy_text = str(response)
 
-            # พยายามแกะ JSON ออกมา
-            json_match = re.search(r'\{.*\}', str(response), re.DOTALL)
-            if json_match:
-                try:
-                    mindmap_json = json.loads(json_match.group(0))
-                    return mindmap_json
-                except json.JSONDecodeError:
-                    pass
-
-            # ถ้าแกะไม่ได้ ให้ return default
-            return {
-                "nodes": [
-                    {"id": "1", "data": {"label": "ไม่สามารถสร้าง Mindmap ได้"}}
-                ],
-                "edges": []
-            }
+            # Parse markdown hierarchy เป็น tree structure
+            mindmap = self._parse_markdown_hierarchy(hierarchy_text)
+            print(f"✅ [Mindmap] สร้าง hierarchy สำเร็จ ({len(mindmap['nodes'])} nodes)")
+            return mindmap
 
         except Exception as e:
             print(f"⚠️ [Mindmap Error] {str(e)}")
             return {
                 "nodes": [
-                    {"id": "1", "data": {"label": "เกิดข้อผิดพลาด"}}
+                    {
+                        "id": "1",
+                        "label": "หัวข้อหลัก",
+                        "parentId": None,
+                        "level": 0,
+                        "type": "root"
+                    }
                 ],
                 "edges": []
             }
+
+    def _parse_markdown_hierarchy(self, markdown_text: str) -> Dict:
+        """Parse markdown hierarchy (# ## ###) into tree structure with parent-child relationships"""
+        nodes = []
+        edges = []
+        node_id_counter = 1
+        level_to_node_id = {}  # Map level to current node ID at that level
+
+        lines = markdown_text.split('\n')
+
+        for line in lines:
+            line = line.strip()
+            if not line or not line.startswith('#'):
+                continue
+
+            # Extract level (# ## ### -> 1, 2, 3)
+            level = 0
+            while level < len(line) and line[level] == '#':
+                level += 1
+            level -= 1  # Convert to 0-indexed
+
+            # Extract label
+            label = line.lstrip('#').strip()
+            if not label:
+                continue
+
+            node_id = str(node_id_counter)
+            node_id_counter += 1
+
+            # Determine parent ID
+            parent_id = None
+            if level > 0 and level - 1 in level_to_node_id:
+                parent_id = level_to_node_id[level - 1]
+
+            # Create node
+            node = {
+                "id": node_id,
+                "label": label,
+                "parentId": parent_id,
+                "level": level,
+                "type": "root" if level == 0 else ("branch" if level == 1 else "leaf"),
+                "position": {"x": level * 200, "y": node_id_counter * 100},
+                "data": {"label": label}
+            }
+            nodes.append(node)
+
+            # Add edge if has parent
+            if parent_id:
+                edge = {
+                    "id": f"e{parent_id}-{node_id}",
+                    "source": parent_id,
+                    "target": node_id,
+                    "type": "smoothstep",
+                    "animated": True
+                }
+                edges.append(edge)
+
+            # Update level_to_node_id mapping (clear deeper levels)
+            level_to_node_id[level] = node_id
+            # Clear deeper levels
+            keys_to_delete = [k for k in level_to_node_id if k > level]
+            for k in keys_to_delete:
+                del level_to_node_id[k]
+
+        # If no nodes generated, return default
+        if not nodes:
+            return {
+                "nodes": [
+                    {
+                        "id": "1",
+                        "label": "หัวข้อหลัก",
+                        "parentId": None,
+                        "level": 0,
+                        "type": "root",
+                        "position": {"x": 0, "y": 0},
+                        "data": {"label": "หัวข้อหลัก"}
+                    }
+                ],
+                "edges": []
+            }
+
+        return {"nodes": nodes, "edges": edges}
 
     def get_document_status(self, session_id: str, filename: str) -> Dict:
         """ดึงสถานะการประมวลผลเอกสาร"""

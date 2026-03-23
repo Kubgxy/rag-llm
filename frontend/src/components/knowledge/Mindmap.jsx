@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import {
   ReactFlow,
   Background,
@@ -9,14 +9,81 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useDocumentStore } from '../../stores/documentStore.js'
 
+/**
+ * Calculate hierarchical position for mindmap nodes
+ * Level 0 (root) at center, Level 1 branches around root radially, Level 2 sub-branches
+ */
+function calculateHierarchicalPositions(nodes) {
+  const positions = {}
+  const levelNodes = {}
+
+  // Group nodes by level
+  nodes.forEach(node => {
+    const level = node.level || 0
+    if (!levelNodes[level]) levelNodes[level] = []
+    levelNodes[level].push(node)
+  })
+
+  // Calculate positions
+  const rootNode = nodes.find(n => n.level === 0)
+  if (rootNode) {
+    positions[rootNode.id] = { x: 0, y: 0 }
+
+    // Position level 1 nodes in a circle around root
+    const level1Nodes = levelNodes[1] || []
+    const radius1 = 250
+    level1Nodes.forEach((node, idx) => {
+      const angle = (idx / level1Nodes.length) * 2 * Math.PI - Math.PI / 2
+      positions[node.id] = {
+        x: Math.cos(angle) * radius1,
+        y: Math.sin(angle) * radius1,
+      }
+
+      // Position level 2 nodes around their parent
+      const level2Children = nodes.filter(n => n.parentId === node.id && n.level === 2)
+      const radius2 = 100
+      level2Children.forEach((child, childIdx) => {
+        const childAngle = (childIdx / Math.max(1, level2Children.length)) * 2 * Math.PI
+        positions[child.id] = {
+          x: positions[node.id].x + Math.cos(childAngle) * radius2,
+          y: positions[node.id].y + Math.sin(childAngle) * radius2,
+        }
+      })
+    })
+  }
+
+  return positions
+}
+
 export default function Mindmap() {
   const { mindmapNodes: storeNodes, mindmapEdges: storeEdges } = useDocumentStore()
 
+  // Calculate hierarchical positions
+  const positions = useMemo(
+    () => calculateHierarchicalPositions(storeNodes),
+    [storeNodes]
+  )
+
   const initialNodes = storeNodes.map((node, i) => ({
     id: node.id || `node-${i}`,
-    position: node.position || { x: 200 * (i % 4), y: 120 * Math.floor(i / 4) },
+    position: positions[node.id] || node.position || { x: 0, y: i * 80 },
     data: { label: node.label || node.data?.label || `Node ${i}` },
     type: node.type || 'default',
+    style: {
+      padding: '10px 15px',
+      borderRadius: '8px',
+      fontSize: '12px',
+      fontWeight: node.level === 0 ? '600' : '500',
+      backgroundColor:
+        node.level === 0
+          ? '#6366f1'
+          : node.level === 1
+          ? '#a855f7'
+          : '#ec4899',
+      color: 'white',
+      border: 'none',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+    }
   }))
 
   const initialEdges = storeEdges.map((edge, i) => ({
@@ -24,7 +91,11 @@ export default function Mindmap() {
     source: edge.source,
     target: edge.target,
     animated: edge.animated ?? true,
-    style: { strokeWidth: 2 },
+    type: 'smoothstep',
+    style: {
+      strokeWidth: 2,
+      stroke: '#a78bfa'
+    },
   }))
 
   const [nodes, , onNodesChange] = useNodesState(initialNodes)

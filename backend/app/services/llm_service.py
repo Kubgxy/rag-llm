@@ -1,4 +1,5 @@
 import asyncio
+from typing import Dict
 from llama_index.llms.ollama import Ollama
 from llama_index.core import VectorStoreIndex
 from app.config import settings
@@ -36,7 +37,7 @@ class LLMService:
         query: str,
         session_id: str,
         model_name: str
-    ) -> str:
+    ) -> Dict[str, str]:
         """
         ถามคำถามโดยใช้ context จาก Vector Store
 
@@ -46,7 +47,7 @@ class LLMService:
             model_name: ชื่อโมเดลที่ต้องการใช้
 
         Returns:
-            คำตอบจาก LLM
+            Dict with 'thinking' (optional) and 'answer' keys
         """
         print(f"💬 [Query] {session_id}: {query}")
 
@@ -84,9 +85,27 @@ class LLMService:
         # Query
         print(f"🤖 [LLM] กำลังคิดคำตอบด้วย {model_name}...")
         response = await asyncio.to_thread(query_engine.query, query)
+        response_text = str(response)
+
+        # Extract thinking blocks from response
+        thinking = None
+        answer = response_text
+
+        if '<think>' in response_text and '</think>' in response_text:
+            start_idx = response_text.find('<think>')
+            end_idx = response_text.find('</think>') + len('</think>')
+            thinking = response_text[start_idx:end_idx]
+            # Remove thinking from answer
+            answer = (response_text[:start_idx] + response_text[end_idx:]).strip()
+            print(f"🧠 [Thinking] พบ thinking blocks: {len(thinking)} chars")
+        else:
+            print(f"📝 [Response] ไม่มี thinking blocks")
 
         print(f"✅ [Response] ตอบคำถามเรียบร้อย")
-        return str(response)
+        return {
+            "thinking": thinking,
+            "answer": answer
+        }
 
 
 # Singleton instance

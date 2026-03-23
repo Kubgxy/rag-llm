@@ -1,7 +1,15 @@
 import ReactMarkdown from 'react-markdown'
 import { Bot, User } from 'lucide-react'
+import ThinkingBlock from './ThinkingBlock'
+import { useChatStore } from '../../stores/chatStore'
 
-export default function ChatMessage({ role, content }) {
+export default function ChatMessage({ message, onThinkingToggle }) {
+  // Support both old format (role, content props) and new format (message object)
+  const msg = typeof message === 'string'
+    ? { role: 'user', content: message, thinking: null, metadata: {} }
+    : message || {}
+
+  const { role, content, thinking, id, metadata = {} } = msg
   const isUser = role === 'user'
 
   return (
@@ -20,20 +28,42 @@ export default function ChatMessage({ role, content }) {
       </div>
 
       {/* Message bubble */}
-      <div
-        className={`
-          max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed
-          ${isUser
-            ? 'bg-primary-500 text-white rounded-tr-md'
-            : 'bg-surface-100 dark:bg-surface-800 text-surface-800 dark:text-surface-200 rounded-tl-md border border-surface-200 dark:border-surface-700'
-          }
-        `}
-      >
-        {isUser ? (
-          <p>{content}</p>
-        ) : (
-          <div className="prose-chat">
-            <ReactMarkdown>{content}</ReactMarkdown>
+      <div className={`max-w-[80%] ${isUser ? 'flex-row-reverse' : ''}`}>
+        {/* Thinking block (if exists) */}
+        {!isUser && thinking && (
+          <div className="mb-2">
+            <ThinkingBlock
+              thinking={thinking}
+              isExpanded={metadata?.thinkingExpanded || false}
+              onToggle={() => onThinkingToggle && onThinkingToggle(id)}
+              messageId={id}
+            />
+          </div>
+        )}
+
+        {/* Main message bubble */}
+        <div
+          className={`
+            px-4 py-3 rounded-2xl text-sm leading-relaxed
+            ${isUser
+              ? 'bg-primary-500 text-white rounded-tr-md'
+              : 'bg-surface-100 dark:bg-surface-800 text-surface-800 dark:text-surface-200 rounded-tl-md border border-surface-200 dark:border-surface-700'
+            }
+          `}
+        >
+          {isUser ? (
+            <p>{content}</p>
+          ) : (
+            <div className="prose-chat">
+              <ReactMarkdown>{content}</ReactMarkdown>
+            </div>
+          )}
+        </div>
+
+        {/* Model info (for AI responses) */}
+        {!isUser && metadata?.model && (
+          <div className="text-xs text-surface-500 dark:text-surface-400 mt-1 px-1">
+            {metadata.model}
           </div>
         )}
       </div>

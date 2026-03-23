@@ -50,7 +50,13 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     query: str
     answer: str
+    thinking: Optional[str] = None
     model_name: Optional[str] = None
+
+
+class ChatTitleRequest(BaseModel):
+    query: str = Field(..., description="ประโยคแรกของผู้ใช้")
+    model_name: Optional[str] = Field(default="typhoon-2.5", description="โมเดล LLM ที่ใช้สร้างชื่อ")
 
 
 class ErrorResponse(BaseModel):

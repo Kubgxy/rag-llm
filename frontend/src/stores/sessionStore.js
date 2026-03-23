@@ -15,11 +15,13 @@ export const useSessionStore = create(
   persist(
     (set, get) => ({
       sessionId: null,
+      chatTitle: 'New Chat', // NEW: chat title
+      chatTitleLoading: false, // NEW: track if loading
 
       // สร้าง session ใหม่
       createSession: () => {
         const newSessionId = generateSessionId()
-        set({ sessionId: newSessionId })
+        set({ sessionId: newSessionId, chatTitle: 'New Chat' })
         return newSessionId
       },
 
@@ -35,13 +37,19 @@ export const useSessionStore = create(
       // รีเซ็ต session (เคลียร์ทุกอย่างเริ่มใหม่)
       resetSession: () => {
         const newSessionId = generateSessionId()
-        set({ sessionId: newSessionId })
+        set({ sessionId: newSessionId, chatTitle: 'New Chat' })
         return newSessionId
       },
+
+      // NEW: ตั้งชื่อแชท
+      setChatTitle: (title) => set({ chatTitle: title, chatTitleLoading: false }),
+
+      // NEW: ตั้ง loading state
+      setChatTitleLoading: (loading) => set({ chatTitleLoading: loading }),
     }),
     {
       name: 'rag-session-storage', // ชื่อ key ใน localStorage
-      partialize: (state) => ({ sessionId: state.sessionId }), // เก็บแค่ sessionId
+      partialize: (state) => ({ sessionId: state.sessionId, chatTitle: state.chatTitle }), // เก็บ sessionId + chatTitle
     }
   )
 )
