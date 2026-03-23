@@ -71,13 +71,10 @@ async def suggest_title(request: ChatTitleRequest):
         llm = llm_service.get_llm(model_name)
 
         # Generate title (ไม่ใช้ session - แค่ plain generation)
-        from llama_index.core import PromptTemplate
-        from llama_index.core.llms import ChatMessage, MessageRole
+        llm = llm_service.get_llm(model_name)
 
+        # Use complete method (synchronous wrapped in thread)
         response = await asyncio.to_thread(
-            llm.acomplete,
-            title_prompt
-        ) if hasattr(llm, 'acomplete') else await asyncio.to_thread(
             llm.complete,
             title_prompt
         )
