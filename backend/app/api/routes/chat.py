@@ -126,6 +126,9 @@ async def chat_compare(request: CompareRequest):
             )
         )
 
+        print(f"📊 [Result A] answer length: {len(result_a.get('answer', ''))}")
+        print(f"📊 [Result B] answer length: {len(result_b.get('answer', ''))}")
+
         return CompareResponse(
             query=request.query,
             response_a=ChatResponse(

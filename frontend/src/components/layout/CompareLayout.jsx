@@ -200,7 +200,11 @@ export function CompareLayout({
                           </div>
                         )}
                         <div className="bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-4 prose-chat">
-                          <ReactMarkdown>{msg.responseA?.answer || 'ไม่มีคำตอบ'}</ReactMarkdown>
+                          {msg.responseA?.answer && msg.responseA.answer.trim() ? (
+                            <ReactMarkdown>{msg.responseA.answer}</ReactMarkdown>
+                          ) : (
+                            <span className="text-surface-500 italic">ไม่มีคำตอบ</span>
+                          )}
                         </div>
                         {/* Vote Buttons for Model A */}
                         <div className="flex gap-2">
@@ -248,7 +252,11 @@ export function CompareLayout({
                           </div>
                         )}
                         <div className="bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-4 prose-chat">
-                          <ReactMarkdown>{msg.responseB?.answer || 'ไม่มีคำตอบ'}</ReactMarkdown>
+                          {msg.responseB?.answer && msg.responseB.answer.trim() ? (
+                            <ReactMarkdown>{msg.responseB.answer}</ReactMarkdown>
+                          ) : (
+                            <span className="text-surface-500 italic">ไม่มีคำตอบ</span>
+                          )}
                         </div>
                         {/* Vote Buttons for Model B */}
                         <div className="flex gap-2">
