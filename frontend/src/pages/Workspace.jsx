@@ -16,7 +16,7 @@ export default function Workspace() {
 
   // States & Hooks
   const { messages, isLoading, sendMessage } = useChat()
-  const { toggleThinkingExpanded, clearArenaMessages } = useChatStore()
+  const { toggleThinkingExpanded } = useChatStore()
   const { chatTitle } = useSessionStore()
   const { documents } = useDocumentStore()
   const chatEndRef = useRef(null)
@@ -58,13 +58,11 @@ export default function Workspace() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Handle compare mode toggle - clear compare messages when switching
+  // Handle compare mode toggle - preserve compare messages when switching
   const handleToggleCompare = (newMode) => {
     setIsCompareMode(newMode)
-    if (newMode) {
-      // Entering compare mode - clear old compare messages
-      clearArenaMessages()
-    }
+    // Don't clear arena messages - preserve chat history when switching modes
+    // Users can manually clear if needed
   }
 
   return (

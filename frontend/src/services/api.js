@@ -2,7 +2,7 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
-  timeout: 120000, // 🔧 เพิ่มเป็น 120 วินาที (backend บางทีช้า 60+ วินาที)
+  timeout: 150000, // 🔧 เพิ่มเป็น 150 วินาที (backend บางทีช้า 60+ วินาที)
   // [เพิ่ม] Header นี้สำคัญมากสำหรับทะลวงหน้าเตือนของ Ngrok
   headers: {
     'ngrok-skip-browser-warning': 'true',
