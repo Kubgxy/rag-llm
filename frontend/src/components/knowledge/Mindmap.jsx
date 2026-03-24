@@ -76,38 +76,58 @@ export default function Mindmap() {
     [storeNodes]
   )
 
-  const initialNodes = storeNodes.map((node, i) => {
-    // Node color กำหนดตามระดับ
-    const bgColors = {
-      0: '#6366f1',  // indigo
-      1: '#a855f7',  // purple
-      2: '#ec4899',  // pink
-    }
-    const bgColor = bgColors[node.level] || '#8b5cf6'
-
-    // Text color - ขาวสำหรับ dark bg ตลอด
-    return {
-      id: node.id || `node-${i}`,
-      position: positions[node.id] || node.position || { x: 0, y: i * 80 },
-      data: { label: node.label || node.data?.label || `Node ${i}` },
-      type: 'default', // 🔧 Fixed: use 'default' type ที่ ReactFlow รู้จัก
-      style: {
-        padding: node.level === 0 ? '16px 20px' : node.level === 1 ? '14px 18px' : '12px 16px',
-        borderRadius: '8px',
-        fontSize: node.level === 0 ? '15px' : node.level === 1 ? '14px' : '13px',
-        fontWeight: node.level === 0 ? '800' : node.level === 1 ? '700' : '600',
-        backgroundColor: bgColor,
-        color: '#ffffff', // ขาวตลอด เพราะ background เข้มสำหรับ dark mode
-        border: node.level === 0 ? '3px solid rgba(255,255,255,0.4)' : '2px solid rgba(255,255,255,0.3)',
-        boxShadow: node.level === 0
-          ? '0 6px 16px rgba(0,0,0,0.3), 0 0 12px rgba(99,102,241,0.5)'
-          : '0 4px 12px rgba(0,0,0,0.25), 0 0 8px currentColor',
-        textShadow: '0 2px 4px rgba(0,0,0,0.5)', // เพิ่ม shadow ให้โด่ด
-        zIndex: node.level === 0 ? 20 : node.level === 1 ? 15 : 10,
-        minWidth: node.level === 0 ? '80px' : 'auto',
+  // Create nodes with dark mode support
+  const initialNodes = useMemo(
+    () => storeNodes.map((node, i) => {
+      // Node color กำหนดตามระดับ
+      const bgColors = {
+        0: '#6366f1',  // indigo - root (เข้มสุด)
+        1: '#a855f7',  // purple - parent
+        2: '#ec4899',  // pink - child (อ่อนสุด)
       }
-    }
-  })
+      const bgColor = bgColors[node.level] || '#8b5cf6'
+
+      // Text color: ดำในlightmode, ขาวในdarkmode
+      const textColor = isDarkMode ? '#ffffff' : '#1a1a1a'
+
+      // Shadow/glow ต่างกันตามระดับ เพื่อให้เห็นลำดับชั้น
+      const shadows = {
+        0: isDarkMode
+          ? '0 10px 25px rgba(0,0,0,0.4), 0 0 20px rgba(99,102,241,0.7)'
+          : '0 10px 25px rgba(0,0,0,0.2), 0 0 15px rgba(99,102,241,0.4)',
+        1: isDarkMode
+          ? '0 7px 18px rgba(0,0,0,0.3), 0 0 15px rgba(168,85,247,0.6)'
+          : '0 7px 18px rgba(0,0,0,0.15), 0 0 12px rgba(168,85,247,0.3)',
+        2: isDarkMode
+          ? '0 4px 12px rgba(0,0,0,0.25), 0 0 10px rgba(236,72,153,0.5)'
+          : '0 4px 12px rgba(0,0,0,0.12), 0 0 8px rgba(236,72,153,0.25)',
+      }
+
+      return {
+        id: node.id || `node-${i}`,
+        position: positions[node.id] || node.position || { x: 0, y: i * 80 },
+        data: { label: node.label || node.data?.label || `Node ${i}` },
+        type: 'default',
+        style: {
+          // ขนาด/spacing ต่างกันตามระดับ
+          padding: node.level === 0 ? '18px 24px' : node.level === 1 ? '14px 18px' : '11px 14px',
+          borderRadius: '8px',
+          fontSize: node.level === 0 ? '16px' : node.level === 1 ? '14px' : '12px',
+          fontWeight: node.level === 0 ? '900' : node.level === 1 ? '700' : '600',
+          backgroundColor: bgColor,
+          color: textColor,
+          border: node.level === 0 ? '3px solid rgba(255,255,255,0.5)' : '2px solid rgba(255,255,255,0.4)',
+          boxShadow: shadows[node.level] || shadows[2],
+          textShadow: isDarkMode
+            ? '0 3px 6px rgba(0,0,0,0.7)'
+            : '0 2px 4px rgba(255,255,255,0.5)',
+          zIndex: node.level === 0 ? 30 : node.level === 1 ? 20 : 10,
+          minWidth: node.level === 0 ? '100px' : node.level === 1 ? '85px' : 'auto',
+        }
+      }
+    }),
+    [storeNodes, positions, isDarkMode]
+  )
 
   const initialEdges = storeEdges.map((edge, i) => ({
     id: edge.id || `edge-${i}`,

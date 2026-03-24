@@ -17,6 +17,7 @@ export const useSessionStore = create(
       sessionId: null,
       chatTitle: 'New Chat', // NEW: chat title
       chatTitleLoading: false, // NEW: track if loading
+      arenaSessionId: null, // NEW: separate session for compare mode
 
       // สร้าง session ใหม่
       createSession: () => {
@@ -34,6 +35,17 @@ export const useSessionStore = create(
         return sessionId
       },
 
+      // NEW: สร้าง arena session ให้แยกออก
+      getArenaSessionId: () => {
+        const { arenaSessionId, createSession } = get()
+        if (!arenaSessionId) {
+          const newId = generateSessionId()
+          set({ arenaSessionId: newId })
+          return newId
+        }
+        return arenaSessionId
+      },
+
       // รีเซ็ต session (เคลียร์ทุกอย่างเริ่มใหม่)
       resetSession: () => {
         const newSessionId = generateSessionId()
@@ -49,7 +61,11 @@ export const useSessionStore = create(
     }),
     {
       name: 'rag-session-storage', // ชื่อ key ใน localStorage
-      partialize: (state) => ({ sessionId: state.sessionId, chatTitle: state.chatTitle }), // เก็บ sessionId + chatTitle
+      partialize: (state) => ({
+        sessionId: state.sessionId,
+        chatTitle: state.chatTitle,
+        arenaSessionId: state.arenaSessionId
+      }), // เก็บ sessionId + chatTitle + arenaSessionId
     }
   )
 )

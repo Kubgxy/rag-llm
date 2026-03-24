@@ -8,15 +8,15 @@ export function CompareToggle({ isCompareMode, onToggle }) {
   return (
     <button
       onClick={() => onToggle(!isCompareMode)}
-      className={`compare-toggle px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
+      className={`compare-toggle flex items-center gap-2 px-3 py-1.5 rounded-full font-semibold text-xs transition-all ${
         isCompareMode
-          ? 'bg-purple-600 text-white hover:bg-purple-700 shadow-lg'
-          : 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600'
+          ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg'
+          : 'bg-gradient-to-r from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 text-slate-700 dark:text-slate-200 shadow-md'
       }`}
       title={isCompareMode ? 'Switch to Normal mode' : 'Switch to Compare mode'}
     >
-      <GitCompare size={18} />
-      <span>{isCompareMode ? 'Compare Mode' : 'Normal'}</span>
+      <GitCompare size={16} strokeWidth={2.5} />
+      <span>{isCompareMode ? 'COMPARE' : 'NORMAL'}</span>
     </button>
   )
 }

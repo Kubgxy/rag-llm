@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ChevronLeft, MessageSquare, FileText, PanelRight } from 'lucide-react'
+import { ChevronLeft, MessageSquare, FileText, PanelRight, Sun, Moon } from 'lucide-react'
 import { useChat } from '../hooks/useChat.js'
 import { useChatStore } from '../stores/chatStore.js'
 import { useDocumentStore } from '../stores/documentStore.js'
@@ -16,7 +16,7 @@ export default function Workspace() {
 
   // States & Hooks
   const { messages, isLoading, sendMessage } = useChat()
-  const { toggleThinkingExpanded } = useChatStore()
+  const { toggleThinkingExpanded, clearArenaMessages } = useChatStore()
   const { chatTitle } = useSessionStore()
   const { documents } = useDocumentStore()
   const chatEndRef = useRef(null)
@@ -26,6 +26,26 @@ export default function Workspace() {
   const [isCompareMode, setIsCompareMode] = useState(false)
   const [showMobileLeft, setShowMobileLeft] = useState(false)
   const [showMobileRight, setShowMobileRight] = useState(false)
+  const [isDarkMode, setIsDarkMode] = useState(false)
+
+  // Initialize theme from localStorage/system preference
+  useEffect(() => {
+    const isDark = document.documentElement.classList.contains('dark')
+    setIsDarkMode(isDark)
+  }, [])
+
+  // Toggle theme
+  const toggleTheme = () => {
+    const newIsDark = !isDarkMode
+    setIsDarkMode(newIsDark)
+    if (newIsDark) {
+      document.documentElement.classList.add('dark')
+      localStorage.setItem('theme', 'dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+      localStorage.setItem('theme', 'light')
+    }
+  }
 
   // Ensure current session in URL matches store
   useEffect(() => {
@@ -37,6 +57,15 @@ export default function Workspace() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Handle compare mode toggle - clear compare messages when switching
+  const handleToggleCompare = (newMode) => {
+    setIsCompareMode(newMode)
+    if (newMode) {
+      // Entering compare mode - clear old compare messages
+      clearArenaMessages()
+    }
+  }
 
   return (
     <div className="flex flex-col h-full bg-surface-100 dark:bg-surface-950">
@@ -58,10 +87,17 @@ export default function Workspace() {
           </span>
         </div>
 
-        {/* Toolbar: Model Selector + Compare Toggle */}
+        {/* Toolbar: Model Selector + Compare Toggle + Theme Toggle */}
         <div className="flex items-center gap-3">
           <ModelSelector />
-          <CompareToggle isCompareMode={isCompareMode} onToggle={setIsCompareMode} />
+          <CompareToggle isCompareMode={isCompareMode} onToggle={handleToggleCompare} />
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-lg hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors text-surface-600 dark:text-surface-300"
+            title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
         </div>
 
         {/* Mobile toggles */}
