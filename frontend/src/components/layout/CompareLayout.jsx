@@ -32,7 +32,7 @@ export function CompareLayout({
     addArenaResponse,
     setArenaLoading,
   } = useChatStore()
-  const { getSessionId, getArenaSessionId } = useSessionStore()
+  const { getSessionId } = useSessionStore()
   const { addToast } = useToast()
 
   const handleSendMessage = async (query) => {
@@ -47,8 +47,8 @@ export function CompareLayout({
     setArenaLoading(true)
 
     try {
-      // ใช้ arena session id แยกออก
-      const sessionId = getArenaSessionId()
+      // ☑️ ใช้ session id เดียวกับ normal mode เพื่อเข้าถึงเอกสารเดียวกัน
+      const sessionId = getSessionId()
       const result = await chatCompare(query, arenaModelA, arenaModelB, sessionId)
 
       // เพิ่ม response ของทั้ง 2 โมเดล
