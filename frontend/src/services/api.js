@@ -105,11 +105,17 @@ export const chatSingle = async (query, modelName, sessionId) => {
 /**
  * Compare models (arena)
  * POST /chat/compare
+ * @param {string} query - User query
+ * @param {string} modelA - Model A name
+ * @param {string} modelB - Model B name
+ * @param {string} sessionId - Session ID
  */
-export const chatCompare = async (query, models) => {
+export const chatCompare = async (query, modelA, modelB, sessionId) => {
   const { data } = await api.post('/chat/compare', {
     query,
-    models,
+    model_a: modelA,
+    model_b: modelB,
+    session_id: sessionId,
   })
   return data
 }

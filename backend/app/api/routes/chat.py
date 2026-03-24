@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 import asyncio
 import re
-from app.schemas import ChatRequest, ChatResponse, ChatTitleRequest
+from app.schemas import ChatRequest, ChatResponse, ChatTitleRequest, CompareRequest, CompareResponse
 from app.services import llm_service
 
 
@@ -92,3 +92,65 @@ async def suggest_title(request: ChatTitleRequest):
         # Return fallback title
         fallback_title = request.query[:30].strip()
         return {"title": fallback_title}
+
+
+@router.post("/compare", response_model=CompareResponse)
+async def chat_compare(request: CompareRequest):
+    """
+    ถามคำถามเดียวกันกับ 2 โมเดลแล้วเปรียบเทียบ
+
+    Args:
+        request: CompareRequest ที่มี query, model_a, model_b, session_id
+
+    Returns:
+        CompareResponse พร้อมคำตอบจากทั้ง 2 โมเดล
+    """
+    try:
+        if request.model_a == request.model_b:
+            raise ValueError("โปรดเลือกโมเดลที่ต่างกัน")
+
+        print(f"⚔️  [Compare] ถามทั้ง {request.model_a} และ {request.model_b}")
+        print(f"   Query: {request.query}")
+
+        # Query ทั้ง 2 โมเดลพร้อมกัน
+        result_a, result_b = await asyncio.gather(
+            llm_service.query_with_context(
+                query=request.query,
+                session_id=request.session_id,
+                model_name=request.model_a
+            ),
+            llm_service.query_with_context(
+                query=request.query,
+                session_id=request.session_id,
+                model_name=request.model_b
+            )
+        )
+
+        return CompareResponse(
+            query=request.query,
+            response_a=ChatResponse(
+                query=request.query,
+                thinking=result_a.get("thinking"),
+                answer=result_a.get("answer"),
+                model_name=request.model_a
+            ),
+            response_b=ChatResponse(
+                query=request.query,
+                thinking=result_b.get("thinking"),
+                answer=result_b.get("answer"),
+                model_name=request.model_b
+            )
+        )
+
+    except ValueError as e:
+        print(f"⚠️  [Compare Error] {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except Exception as e:
+        print(f"❌ [Compare Error] {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"เกิดข้อผิดพลาดในการเปรียบเทียบ: {str(e)}"
+        )

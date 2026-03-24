@@ -59,6 +59,19 @@ class ChatTitleRequest(BaseModel):
     model_name: Optional[str] = Field(default="typhoon-2.5", description="โมเดล LLM ที่ใช้สร้างชื่อ")
 
 
+class CompareRequest(BaseModel):
+    query: str = Field(..., description="คำถามที่ต้องการถาม")
+    model_a: str = Field(..., description="ชื่อโมเดล A")
+    model_b: str = Field(..., description="ชื่อโมเดล B")
+    session_id: str = Field(..., description="Session ID สำหรับแยกแชท")
+
+
+class CompareResponse(BaseModel):
+    query: str
+    response_a: ChatResponse
+    response_b: ChatResponse
+
+
 class ErrorResponse(BaseModel):
     status: str = "error"
     message: str

@@ -1,8 +1,10 @@
 import { MessageSquare, FileText, ThumbsUp, ThumbsDown } from 'lucide-react'
 import ChatMessage from '../chat/ChatMessage.jsx'
 import ChatInput from '../chat/ChatInput.jsx'
-import ModelSelector from '../chat/ModelSelector.jsx'
 import { useChatStore } from '../../stores/chatStore.js'
+import { useSessionStore } from '../../stores/sessionStore.js'
+import { chatCompare } from '../../services/api.js'
+import { useToast } from '../ui/Toast.jsx'
 
 /**
  * CompareLayout - Side-by-side comparison of 2 AI models
@@ -26,13 +28,40 @@ export function CompareLayout({
     setArenaVote,
     isArenaLoading,
     addArenaUserMessage,
+    addArenaResponse,
+    setArenaLoading,
   } = useChatStore()
+  const { getSessionId } = useSessionStore()
+  const { addToast } = useToast()
 
   const handleSendMessage = async (query) => {
-    if (!query.trim() || isArenaLoading) return
+    if (!query.trim() || isArenaLoading || !arenaModelA || !arenaModelB) {
+      if (!arenaModelA || !arenaModelB) {
+        addToast('กรุณาเลือกโมเดล A และ B', 'error')
+      }
+      return
+    }
+
     addArenaUserMessage(query)
-    // Call compare send message from hook
-    sendMessage(query, [arenaModelA, arenaModelB], true)
+    setArenaLoading(true)
+
+    try {
+      const sessionId = getSessionId()
+      const result = await chatCompare(query, arenaModelA, arenaModelB, sessionId)
+
+      // เพิ่ม response ของทั้ง 2 โมเดล
+      addArenaResponse({
+        responseA: result.response_a,
+        responseB: result.response_b,
+      })
+
+      addToast('ได้คำตอบจากทั้ง 2 โมเดล', 'success')
+    } catch (error) {
+      console.error('Compare error:', error)
+      addToast(error.message || 'ไม่สามารถเปรียบเทียบโมเดลได้', 'error')
+    } finally {
+      setArenaLoading(false)
+    }
   }
 
   return (
@@ -80,21 +109,41 @@ export function CompareLayout({
               <label className="text-xs font-semibold text-surface-500 dark:text-surface-400">
                 📊 โมเดล A (ซ้าย)
               </label>
-              <ModelSelector
-                selectedModel={arenaModelA}
-                onSelect={setArenaModelA}
-                className="w-full"
-              />
+              <select
+                value={arenaModelA}
+                onChange={(e) => {
+                  const newValue = e.target.value
+                  // ป้องกันเลือกตัวเดียวกับ Model B
+                  if (newValue !== arenaModelB) {
+                    setArenaModelA(newValue)
+                  }
+                }}
+                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white text-sm hover:border-primary-400 dark:hover:border-primary-500 transition-colors cursor-pointer"
+              >
+                <option value="">เลือกโมเดล A</option>
+                <option value="typhoon-2.5" disabled={arenaModelB === 'typhoon-2.5'}>Typhoon 2.5 {arenaModelB === 'typhoon-2.5' && '(ใช้โมเดล B อยู่)'}</option>
+                <option value="chinda-123b" disabled={arenaModelB === 'chinda-123b'}>Chinda 123B {arenaModelB === 'chinda-123b' && '(ใช้โมเดล B อยู่)'}</option>
+              </select>
             </div>
             <div className="space-y-2">
               <label className="text-xs font-semibold text-surface-500 dark:text-surface-400">
                 📊 โมเดล B (ขวา)
               </label>
-              <ModelSelector
-                selectedModel={arenaModelB}
-                onSelect={setArenaModelB}
-                className="w-full"
-              />
+              <select
+                value={arenaModelB}
+                onChange={(e) => {
+                  const newValue = e.target.value
+                  // ป้องกันเลือกตัวเดียวกับ Model A
+                  if (newValue !== arenaModelA) {
+                    setArenaModelB(newValue)
+                  }
+                }}
+                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white text-sm hover:border-primary-400 dark:hover:border-primary-500 transition-colors cursor-pointer"
+              >
+                <option value="">เลือกโมเดล B</option>
+                <option value="typhoon-2.5" disabled={arenaModelA === 'typhoon-2.5'}>Typhoon 2.5 {arenaModelA === 'typhoon-2.5' && '(ใช้โมเดล A อยู่)'}</option>
+                <option value="chinda-123b" disabled={arenaModelA === 'chinda-123b'}>Chinda 123B {arenaModelA === 'chinda-123b' && '(ใช้โมเดล A อยู่)'}</option>
+              </select>
             </div>
           </div>
         </div>

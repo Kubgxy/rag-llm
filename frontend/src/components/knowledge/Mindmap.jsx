@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState, useEffect } from 'react'
 import {
   ReactFlow,
   Background,
@@ -57,6 +57,18 @@ function calculateHierarchicalPositions(nodes) {
 
 export default function Mindmap() {
   const { mindmapNodes: storeNodes, mindmapEdges: storeEdges } = useDocumentStore()
+  const [isDarkMode, setIsDarkMode] = useState(false)
+
+  // Detect dark mode
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'))
+    }
+    checkDarkMode()
+    const observer = new MutationObserver(checkDarkMode)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
 
   // Calculate hierarchical positions
   const positions = useMemo(
@@ -64,32 +76,38 @@ export default function Mindmap() {
     [storeNodes]
   )
 
-  const initialNodes = storeNodes.map((node, i) => ({
-    id: node.id || `node-${i}`,
-    position: positions[node.id] || node.position || { x: 0, y: i * 80 },
-    data: { label: node.label || node.data?.label || `Node ${i}` },
-    type: node.type || 'default',
-    style: {
-      padding: node.level === 0 ? '16px 20px' : node.level === 1 ? '14px 18px' : '12px 16px',
-      borderRadius: '8px',
-      fontSize: node.level === 0 ? '15px' : node.level === 1 ? '14px' : '13px',
-      fontWeight: node.level === 0 ? '800' : node.level === 1 ? '700' : '600',
-      backgroundColor:
-        node.level === 0
-          ? '#6366f1'
-          : node.level === 1
-          ? '#a855f7'
-          : '#ec4899',
-      color: '#ffffff',
-      border: node.level === 0 ? '3px solid rgba(255,255,255,0.4)' : '2px solid rgba(255,255,255,0.3)',
-      boxShadow: node.level === 0
-        ? '0 6px 16px rgba(0,0,0,0.3), 0 0 12px rgba(99,102,241,0.5)'
-        : '0 4px 12px rgba(0,0,0,0.25), 0 0 8px currentColor',
-      textShadow: '0 2px 4px rgba(0,0,0,0.4)',
-      zIndex: node.level === 0 ? 20 : node.level === 1 ? 15 : 10,
-      minWidth: node.level === 0 ? '80px' : 'auto',
+  const initialNodes = storeNodes.map((node, i) => {
+    // Node color กำหนดตามระดับ
+    const bgColors = {
+      0: '#6366f1',  // indigo
+      1: '#a855f7',  // purple
+      2: '#ec4899',  // pink
     }
-  }))
+    const bgColor = bgColors[node.level] || '#8b5cf6'
+
+    // Text color - ขาวสำหรับ dark bg ตลอด
+    return {
+      id: node.id || `node-${i}`,
+      position: positions[node.id] || node.position || { x: 0, y: i * 80 },
+      data: { label: node.label || node.data?.label || `Node ${i}` },
+      type: 'default', // 🔧 Fixed: use 'default' type ที่ ReactFlow รู้จัก
+      style: {
+        padding: node.level === 0 ? '16px 20px' : node.level === 1 ? '14px 18px' : '12px 16px',
+        borderRadius: '8px',
+        fontSize: node.level === 0 ? '15px' : node.level === 1 ? '14px' : '13px',
+        fontWeight: node.level === 0 ? '800' : node.level === 1 ? '700' : '600',
+        backgroundColor: bgColor,
+        color: '#ffffff', // ขาวตลอด เพราะ background เข้มสำหรับ dark mode
+        border: node.level === 0 ? '3px solid rgba(255,255,255,0.4)' : '2px solid rgba(255,255,255,0.3)',
+        boxShadow: node.level === 0
+          ? '0 6px 16px rgba(0,0,0,0.3), 0 0 12px rgba(99,102,241,0.5)'
+          : '0 4px 12px rgba(0,0,0,0.25), 0 0 8px currentColor',
+        textShadow: '0 2px 4px rgba(0,0,0,0.5)', // เพิ่ม shadow ให้โด่ด
+        zIndex: node.level === 0 ? 20 : node.level === 1 ? 15 : 10,
+        minWidth: node.level === 0 ? '80px' : 'auto',
+      }
+    }
+  })
 
   const initialEdges = storeEdges.map((edge, i) => ({
     id: edge.id || `edge-${i}`,
