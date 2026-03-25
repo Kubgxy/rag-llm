@@ -18,17 +18,24 @@ export function useChat() {
   const { getSessionId } = useSessionStore()
   const { addToast } = useToast()
 
-  const syncToHistory = (sessionId) => {
+  const syncToHistory = (sessionId, customTitle = null) => {
     // This timeout ensures Zustand state updates have completed before syncing
     setTimeout(() => {
       const currentMessages = useChatStore.getState().messages;
       const docStore = useDocumentStore.getState();
-      useChatHistoryStore.getState().saveSession(sessionId, currentMessages, {
-        documents: docStore.documents,
-        summary: docStore.summary,
-        mindmapNodes: docStore.mindmapNodes,
-        mindmapEdges: docStore.mindmapEdges
-      });
+      const chatTitle = customTitle || useSessionStore.getState().chatTitle;
+
+      useChatHistoryStore.getState().saveSession(
+        sessionId,
+        currentMessages,
+        {
+          documents: docStore.documents,
+          summary: docStore.summary,
+          mindmapNodes: docStore.mindmapNodes,
+          mindmapEdges: docStore.mindmapEdges
+        },
+        chatTitle // Pass the chat title to sync
+      );
     }, 100);
   };
 
@@ -75,6 +82,8 @@ export function useChat() {
             const titleResponse = await suggestTitle(query, selectedModel)
             if (titleResponse.title) {
               useSessionStore.getState().setChatTitle(titleResponse.title)
+              // Sync the new title to history
+              syncToHistory(sessionId, titleResponse.title)
             }
           } catch (err) {
             console.warn('Failed to suggest title:', err)

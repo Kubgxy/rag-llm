@@ -3,6 +3,7 @@ import MainLayout from './layouts/MainLayout.jsx'
 import LandingPage from './pages/LandingPage.jsx'
 import Workspace from './pages/Workspace.jsx'
 import ModelArena from './pages/ModelArena.jsx'
+import Settings from './pages/Settings.jsx'
 
 function App() {
   return (
@@ -11,6 +12,7 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/chat/:sessionId" element={<Workspace />} />
         <Route path="/arena" element={<ModelArena />} />
+        <Route path="/settings" element={<Settings />} />
       </Route>
     </Routes>
   )
