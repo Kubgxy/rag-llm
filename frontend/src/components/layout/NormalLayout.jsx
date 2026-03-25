@@ -1,4 +1,5 @@
 import { MessageSquare, FileText, PanelRight } from 'lucide-react'
+import { useDocumentStore } from '../../stores/documentStore.js'
 import UploadZone from '../upload/UploadZone.jsx'
 import ChatMessage from '../chat/ChatMessage.jsx'
 import ChatInput from '../chat/ChatInput.jsx'
@@ -22,6 +23,7 @@ export function NormalLayout({
   toggleThinkingExpanded,
   chatEndRef,
 }) {
+  const setPreviewPdf = useDocumentStore(state => state.setPreviewPdf)
   return (
     <>
       {/* ===================== LEFT COLUMN (Documents) ===================== */}
@@ -47,6 +49,7 @@ export function NormalLayout({
             documents.map((doc, i) => (
               <div
                 key={i}
+                onClick={() => setPreviewPdf(doc.name)}
                 className="group flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700 hover:border-primary-400 cursor-pointer transition-colors shadow-sm"
               >
                 <FileText className="w-4 h-4 text-primary-500 shrink-0" />

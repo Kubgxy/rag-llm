@@ -34,7 +34,8 @@ async def chat_single(request: ChatRequest):
             query=request.query,
             thinking=result.get("thinking"),
             answer=result.get("answer"),
-            model_name=request.model_name
+            model_name=request.model_name,
+            citations=result.get("citations")
         )
 
     except Exception as e:
@@ -135,13 +136,15 @@ async def chat_compare(request: CompareRequest):
                 query=request.query,
                 thinking=result_a.get("thinking"),
                 answer=result_a.get("answer"),
-                model_name=request.model_a
+                model_name=request.model_a,
+                citations=result_a.get("citations")
             ),
             response_b=ChatResponse(
                 query=request.query,
                 thinking=result_b.get("thinking"),
                 answer=result_b.get("answer"),
-                model_name=request.model_b
+                model_name=request.model_b,
+                citations=result_b.get("citations")
             )
         )
 

@@ -12,6 +12,12 @@ export const useDocumentStore = create(
   isUploading: false,
   uploadError: null,
   activeTab: 'summary',
+  // PDF Preview states
+  previewPdfFile: null,
+  previewPdfPage: null,
+
+  setPreviewPdf: (fileName, page = null) => set({ previewPdfFile: fileName, previewPdfPage: page }),
+  clearPreviewPdf: () => set({ previewPdfFile: null, previewPdfPage: null }),
 
   setUploading: (val) => set({ isUploading: val, uploadError: null }),
 

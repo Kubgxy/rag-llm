@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import time
+import os
 from app.config import settings
 from app.api import api_router
 from app.services import vector_store_service
@@ -49,6 +51,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# mount โฟลเดอร์อัพโหลดเพื่อให้ frontend ดึงไฟล์ pdf ไปเปิดดูได้
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+app.mount("/docs", StaticFiles(directory=settings.UPLOAD_DIR), name="docs")
+
 
 
 # Request Logging Middleware สำหรับ Debug

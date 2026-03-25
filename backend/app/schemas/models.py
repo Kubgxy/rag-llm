@@ -47,11 +47,19 @@ class ChatRequest(BaseModel):
     session_id: str = Field(..., description="Session ID สำหรับแยกแชท")
 
 
+class Citation(BaseModel):
+    file_name: str
+    page_label: str
+    text_snippet: Optional[str] = None
+    similarity_score: Optional[float] = None
+
+
 class ChatResponse(BaseModel):
     query: str
     answer: str
     thinking: Optional[str] = None
     model_name: Optional[str] = None
+    citations: Optional[List[Citation]] = None
 
 
 class ChatTitleRequest(BaseModel):

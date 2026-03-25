@@ -70,7 +70,8 @@ export function useChat() {
             timestamp: Date.now(),
             metadata: {
               model: selectedModel,
-              thinkingExpanded: false
+              thinkingExpanded: false,
+              citations: data.citations || []
             }
           }
           addAssistantMessage(messageData)
@@ -125,8 +126,9 @@ export function useArenaChat() {
       setArenaLoading(true)
 
       try {
-        const data = await chatCompare(query, [arenaModelA, arenaModelB])
-        // Backend ส่งกลับมาในรูปแบบ { results: { "model_id": "answer" } }
+        const compareSessionId = 'compare-session-id' // หรือจะใช้ getSessionId ของคุณ
+        const data = await chatCompare(query, [arenaModelA, arenaModelB], compareSessionId)
+        
         if (data.status === 'error') {
           addToast(data.message || 'การเปรียบเทียบล้มเหลว', 'error')
           addArenaResponse({
@@ -134,8 +136,9 @@ export function useArenaChat() {
             responseB: '⚠️ เกิดข้อผิดพลาด: ' + (data.message || ''),
           })
         } else {
-          const respA = data.results?.[arenaModelA] || 'ไม่ได้รับคำตอบจากโมเดลนี้'
-          const respB = data.results?.[arenaModelB] || 'ไม่ได้รับคำตอบจากโมเดลนี้'
+          // Backend ส่งกลับมาเป็น CompareResponse ที่มี response_a และ response_b
+          const respA = data.response_a?.answer || 'ไม่ได้รับคำตอบจากโมเดลนี้'
+          const respB = data.response_b?.answer || 'ไม่ได้รับคำตอบจากโมเดลนี้'
           addArenaResponse({ responseA: respA, responseB: respB })
         }
       } catch (err) {

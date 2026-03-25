@@ -10,6 +10,7 @@ import ModelSelector from '../components/chat/ModelSelector.jsx'
 import CompareToggle from '../components/chat/CompareToggle.jsx'
 import NormalLayout from '../components/layout/NormalLayout.jsx'
 import CompareLayout from '../components/layout/CompareLayout.jsx'
+import PdfViewerModal from '../components/layout/PdfViewerModal.jsx'
 
 export default function Workspace() {
   const { sessionId } = useParams()
@@ -20,7 +21,7 @@ export default function Workspace() {
   const { toggleThinkingExpanded } = useChatStore()
   const { chatTitle, setChatTitle } = useSessionStore()
   const { updateSessionTitle } = useChatHistoryStore()
-  const { documents } = useDocumentStore()
+  const { documents, previewPdfFile, previewPdfPage, clearPreviewPdf } = useDocumentStore()
   const chatEndRef = useRef(null)
 
   // Layout states
@@ -205,6 +206,16 @@ export default function Workspace() {
         <div 
           className="fixed inset-0 bg-black/20 dark:bg-black/40 z-0 md:hidden" 
           onClick={() => { setShowMobileLeft(false); setShowMobileRight(false); }}
+        />
+      )}
+
+      {/* PDF Viewer */}
+      {previewPdfFile && (
+        <PdfViewerModal
+          isOpen={true}
+          onClose={clearPreviewPdf}
+          title={previewPdfFile}
+          fileUrl={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/docs/${useSessionStore.getState().sessionId}_${previewPdfFile}${previewPdfPage ? `#page=${previewPdfPage}` : ''}`}
         />
       )}
     </div>

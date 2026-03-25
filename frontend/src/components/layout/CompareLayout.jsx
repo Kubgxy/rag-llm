@@ -3,6 +3,7 @@ import ChatMessage from '../chat/ChatMessage.jsx'
 import ChatInput from '../chat/ChatInput.jsx'
 import { useChatStore } from '../../stores/chatStore.js'
 import { useSessionStore } from '../../stores/sessionStore.js'
+import { useDocumentStore } from '../../stores/documentStore.js'
 import { chatCompare } from '../../services/api.js'
 import { useToast } from '../ui/Toast.jsx'
 import ReactMarkdown from 'react-markdown'
@@ -20,6 +21,7 @@ export function CompareLayout({
   toggleThinkingExpanded,
   chatEndRef,
 }) {
+  const setPreviewPdf = useDocumentStore(state => state.setPreviewPdf)
   const {
     arenaMessages,
     arenaModelA,
@@ -90,7 +92,8 @@ export function CompareLayout({
             documents.map((doc, i) => (
               <div
                 key={i}
-                className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700"
+                onClick={() => setPreviewPdf(doc.name)}
+                className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700 cursor-pointer hover:border-primary-400 transition-colors"
               >
                 <FileText className="w-4 h-4 text-primary-500 shrink-0" />
                 <span className="text-sm font-medium text-surface-700 dark:text-surface-300 truncate">

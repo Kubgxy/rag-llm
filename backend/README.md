@@ -5,7 +5,7 @@ Backend สำหรับระบบ RAG (Retrieval-Augmented Generation) ท�
 ## ✨ Features
 
 - 📄 **PDF Processing**: รองรับการอ่าน PDF ทั้งแบบข้อความและ OCR (ภาษาไทย + อังกฤษ)
-- 🧠 **Vector Search**: ใช้ Qdrant สำหรับเก็บและค้นหา embeddings
+- 🧠 **Vector Search**: ใช้ ChromaDB สำหรับเก็บและค้นหา embeddings แบบ Local
 - 💬 **Multi-Session Chat**: รองรับการแชทหลาย session แยกกัน
 - 🤖 **Multiple LLM Models**: รองรับหลายโมเดลผ่าน Ollama
 - 📊 **Auto Summary & Mindmap**: สร้างสรุปและ mindmap อัตโนมัติ
@@ -20,7 +20,7 @@ backend/
 │   │       ├── upload.py      # API สำหรับอัพโหลดเอกสาร
 │   │       └── chat.py         # API สำหรับแชท
 │   ├── services/
-│   │   ├── vector_store.py     # จัดการ Qdrant + Embeddings
+│   │   ├── vector_store.py     # จัดการ ChromaDB + Embeddings
 │   │   ├── llm_service.py      # จัดการ LLM
 │   │   └── document_processor.py  # ประมวลผลเอกสาร
 │   ├── schemas/

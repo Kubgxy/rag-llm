@@ -3,10 +3,11 @@ import json
 import re
 import asyncio
 from typing import Dict, List, Optional
+from llama_index.retrievers.bm25 import BM25Retriever
+from app.services.vector_store import vector_store_service, thai_tokenizer
 from llama_index.core import Document, VectorStoreIndex
 from app.config import settings
-from app.utils.ocr import extract_text_from_pdf
-from app.services.vector_store import vector_store_service
+from app.utils.ocr import extract_text_by_page, extract_text_from_pdf
 from app.services.llm_service import llm_service
 from app.schemas.models import DocumentStatus, Mindmap, MindmapNode
 
@@ -38,26 +39,51 @@ class DocumentProcessorService:
         task_id = f"{session_id}_{filename}"
 
         try:
-            # 1. สกัดข้อความ
+            # 1. สกัดข้อความแยกตามหน้า
             print(f"\n📄 [Task] เริ่มสกัดข้อความจาก: {filename}")
-            extracted_text = extract_text_from_pdf(file_path)
+            pages_text = extract_text_by_page(file_path)
 
-            if not extracted_text or len(extracted_text.strip()) < 10:
-                raise ValueError("ไม่สามารถสกัดข้อความจากไฟล์ได้")
+            if not pages_text:
+                raise ValueError("ไม่สามารถสกัดข้อความจากไฟล์ได้ หรือไฟล์ว่างเปล่า")
 
-            # สร้าง Document
-            doc = Document(
-                text=extracted_text,
-                metadata={"file_name": filename, "session_id": session_id}
-            )
+            # สร้าง Document ตามจำนวนหน้า เพื่อให้ทำ Citation ได้ชัดเจน
+            docs = []
+            for page_num, text in pages_text.items():
+                if len(text.strip()) > 5:
+                    doc = Document(
+                        text=text,
+                        metadata={
+                            "file_name": filename, 
+                            "session_id": session_id,
+                            "page_label": str(page_num)
+                        }
+                    )
+                    docs.append(doc)
 
-            # 2. สร้าง Vector Index
-            print(f"🔍 [Task] กำลังสร้าง Vector Index...")
+            # 2. สร้าง Vector Index และ BM25
+            print(f"🔍 [Task] กำลังสร้าง Vector Index และ BM25 ({len(docs)} chunks/pages)...")
             storage_context = vector_store_service.get_session_storage(session_id)
             index = VectorStoreIndex.from_documents(
-                [doc],
+                docs,
                 storage_context=storage_context
             )
+            
+            # 2.5 สร้าง BM25 Retriever สำหรับ Keyword Search แบบภาษาไทย
+            try:
+                # เนื่องจาก ChromaDB ไม่ได้เก็บ Node ไว้ใน in-memory docstore หลัก
+                # เราจึงสามารถนำตัวแปร docs (หน้าเอกสาร) ที่เราสร้างไว้มาใส่เป็น Node สำหรับ BM25 ได้เลย
+                if docs:
+                    bm25_retriever = BM25Retriever.from_defaults(
+                        nodes=docs,
+                        similarity_top_k=2,
+                        tokenizer=thai_tokenizer,
+                    )
+                    vector_store_service.save_bm25_retriever(session_id, bm25_retriever)
+                    print(f"✅ [BM25] สร้าง Keyword Index สำหรับ {filename} เรียบร้อย")
+                else:
+                    print(f"⚠️ [BM25] เอกสารว่างเปล่า หรือไม่มีเนื้อหาเพียงพอสำหรับสร้าง BM25")
+            except Exception as e:
+                print(f"⚠️ [BM25] ล้มเหลวในการสร้าง BM25 Retriever: {e}")
 
             # 3. เปลี่ยนสถานะเป็น ready_for_chat (ช่วงนี้สามารถเริ่มแชทได้แล้ว)
             doc_status[task_id] = {

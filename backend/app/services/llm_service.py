@@ -1,17 +1,37 @@
 import asyncio
 import time
-from typing import Dict
+from typing import Dict, Any
 from llama_index.llms.ollama import Ollama
 from llama_index.core import VectorStoreIndex
 from app.config import settings
 from app.services.vector_store import vector_store_service
-
+from llama_index.retrievers.bm25 import BM25Retriever
+from llama_index.core.retrievers import QueryFusionRetriever
+from app.services.flashrank_reranker import FlashrankReranker
+from llama_index.core.query_engine import RetrieverQueryEngine
 
 class LLMService:
     """Service สำหรับจัดการ LLM Operations"""
 
     def __init__(self):
         self.models_cache = {}
+        
+        # Load FlashRank model globally at startup
+        import os
+        from app.services.flashrank_reranker import FlashrankReranker
+        print("⚡ กำลังโหลด FlashRank Model: ms-marco-MiniLM-L-12-v2")
+        cache_dir = os.path.join(vector_store_service.bm25_persist_dir, "flashrank_models")
+        os.makedirs(cache_dir, exist_ok=True)
+        try:
+            self.reranker = FlashrankReranker(
+                top_n=settings.SIMILARITY_TOP_K,
+                model_name="ms-marco-MiniLM-L-12-v2",
+                cache_dir=cache_dir
+            )
+            print("✅ FlashRank Model พร้อมใช้งาน")
+        except Exception as e:
+            print(f"⚠️ โหลด FlashRank ไม่สำเร็จ: {e}")
+            self.reranker = None
 
     def get_llm(self, model_name: str) -> Ollama:
         """
@@ -38,7 +58,7 @@ class LLMService:
         query: str,
         session_id: str,
         model_name: str
-    ) -> Dict[str, str]:
+    ) -> Dict[str, Any]:
         """
         ถามคำถามโดยใช้ context จาก Vector Store
 
@@ -65,7 +85,42 @@ class LLMService:
         )
         print(f"   ⏱️ Create index: {time.time() - t1:.2f}s")
 
+        # 1. Vector Retriever
+        vector_retriever = index.as_retriever(similarity_top_k=5)
+
+        # 2. BM25 Retriever
+        bm25_retriever = vector_store_service.get_bm25_retriever(session_id)
+
+        # ดึง LLM มาเตรียมไว้สำหรับ Retriever / Synthesizer
+        llm = self.get_llm(model_name)
+
+        # 3. Query Fusion Retriever (Hybrid Search)
+        retrievers = [vector_retriever]
+        if bm25_retriever:
+            print("🚀 [Hybrid Search] ใช้งาน Keyword BM25 + Vector")
+            # ถ้ามี BM25 ให้จับคู่กับ Vector Search แบบ 50/50
+            fusion_retriever = QueryFusionRetriever(
+                retrievers=[vector_retriever, bm25_retriever],
+                llm=llm,
+                num_queries=1,
+                use_async=False,
+                similarity_top_k=7
+            )
+        else:
+            print("⚠️ [Search] ไม่พบ BM25 Index, ใช้เฉพาะ Vector Search ธรรมดา")
+            fusion_retriever = vector_retriever
+
+        # 4. FlashRank Reranker (Cross-Encoder)
+        if hasattr(self, 'reranker') and self.reranker:
+            self.reranker.top_n = settings.SIMILARITY_TOP_K # Ensure top_n matches current settings
+            node_postprocessors = [self.reranker]
+            print(f"🎯 [Rerank] ใช้งาน FlashRank Model : ms-marco-MiniLM-L-12-v2")
+        else:
+            print(f"⚠️ [Rerank] ไม่พบ FlashRank Model ในระบบ")
+            node_postprocessors = []
+
         from llama_index.core import PromptTemplate
+        from llama_index.core.query_engine import RetrieverQueryEngine
 
         QA_PROMPT_TMPL = (
             "ข้อมูลจากเอกสาร (Context information) อยู่ด้านล่างนี้\n"
@@ -73,20 +128,26 @@ class LLMService:
             "{context_str}\n"
             "---------------------\n"
             "คำสั่ง: จากข้อมูลเอกสารข้างต้น จงตอบคำถามต่อไปนี้\n"
-            "หากข้อความจากเอกสารอ่านยากหรือมีการสะกดผิดจากการสแกน ให้คุณพยายามตีความและสรุปใจความเท่าที่ทำได้ "
+            "หากข้อความจากเอกสารอ่านยากหรือมีการสะกดผิดจากการสแกน ให้พยายามตีความและสรุปใจความเท่าที่ทำได้ "
             "ไม่ต้องตอบว่า 'เนื้อหาอ่านไม่รู้เรื่อง' ยกเว้นว่าจะไม่มีข้อมูลที่เกี่ยวข้องกับคำถามจริงๆ\n"
+            "ในคำตอบของคุณ ให้แนบการอ้างอิงแหล่งที่มาตามแบบฟอร์มนี้เสมอ: [หน้า X] หรือ [ชื่อไฟล์ หน้า X] หากข้อมูลมาจากหลายหน้าให้ระบุทั้งหมด\n"
             "คำถาม: {query_str}\n"
             "คำตอบ: "
         )
         qa_template = PromptTemplate(QA_PROMPT_TMPL)
 
-        # สร้าง Query Engine
-        t1 = time.time()
-        llm = self.get_llm(model_name)
-        query_engine = index.as_query_engine(
+        # สร้าง Query Engine แบบกำหนดเองให้ใช้ Fusion Retriever + Reranker + Prompt
+        # llama-index's custom Prompting via synthesize
+        from llama_index.core.response_synthesizers import get_response_synthesizer
+        response_synthesizer = get_response_synthesizer(
             llm=llm,
-            similarity_top_k=settings.SIMILARITY_TOP_K,
             text_qa_template=qa_template
+        )
+
+        query_engine = RetrieverQueryEngine(
+            retriever=fusion_retriever,
+            response_synthesizer=response_synthesizer,
+            node_postprocessors=node_postprocessors
         )
         print(f"   ⏱️ Create query engine: {time.time() - t1:.2f}s")
 
@@ -115,9 +176,31 @@ class LLMService:
 
         total_time = time.time() - start_time
         print(f"✅ [Response] ตอบคำถามเรียบร้อย ({total_time:.2f}s total)")
+        
+        # ถอด source citations
+        citations = []
+        if hasattr(response, 'source_nodes') and response.source_nodes:
+            seen_sources = set()
+            for node in response.source_nodes:
+                metadata = node.node.metadata
+                file_name = metadata.get("file_name", "Unknown File")
+                page_label = metadata.get("page_label", "N/A")
+                score = getattr(node, 'score', None)
+                source_id = f"{file_name}_{page_label}"
+                
+                if source_id not in seen_sources:
+                    seen_sources.add(source_id)
+                    citations.append({
+                        "file_name": file_name,
+                        "page_label": page_label,
+                        "text_snippet": node.node.get_text()[:200] + "...", 
+                        "similarity_score": float(score) if score is not None else None
+                    })
+
         return {
             "thinking": thinking,
-            "answer": answer
+            "answer": answer,
+            "citations": citations
         }
 
 
