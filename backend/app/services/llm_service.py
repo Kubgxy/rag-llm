@@ -86,7 +86,7 @@ class LLMService:
         print(f"   ⏱️ Create index: {time.time() - t1:.2f}s")
 
         # 1. Vector Retriever
-        vector_retriever = index.as_retriever(similarity_top_k=5)
+        vector_retriever = index.as_retriever(similarity_top_k=3)
 
         # 2. BM25 Retriever
         bm25_retriever = vector_store_service.get_bm25_retriever(session_id)
@@ -103,8 +103,8 @@ class LLMService:
                 retrievers=[vector_retriever, bm25_retriever],
                 llm=llm,
                 num_queries=1,
-                use_async=False,
-                similarity_top_k=7
+                use_async=True,
+                similarity_top_k=4
             )
         else:
             print("⚠️ [Search] ไม่พบ BM25 Index, ใช้เฉพาะ Vector Search ธรรมดา")

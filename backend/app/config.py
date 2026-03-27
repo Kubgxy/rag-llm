@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     MIN_TEXT_LENGTH: int = 100  # ถ้าข้อความน้อยกว่านี้จะใช้ OCR
 
     # Query settings
-    SIMILARITY_TOP_K: int = 4
+    SIMILARITY_TOP_K: int = 3
 
     class Config:
         env_file = ".env"

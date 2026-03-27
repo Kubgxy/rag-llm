@@ -94,13 +94,14 @@ class VectorStoreManager:
         persist_path = os.path.join(self.bm25_persist_dir, f"bm25_{session_id}.pkl")
         if os.path.exists(persist_path):
             try:
-                # First try to load as object via persist if supported, else pickle load
-                # Actually, if we pickled the object directly, load it directly
-                # Or LlamaIndex 0.10+ uses from_persist_dir 
-                
-                # We will just use pickle.load because we dumped the object
-                with open(persist_path, 'rb') as f:
-                    retriever = pickle.load(f)
+                # ถ้า path ที่เซฟเป็น Directory (จากการใช้ retriever.persist)
+                if os.path.isdir(persist_path):
+                    from llama_index.retrievers.bm25 import BM25Retriever
+                    retriever = BM25Retriever.from_persist_dir(persist_path)
+                else:
+                    # กรณีเป็นไฟล์ Pickle ธรรมดา
+                    with open(persist_path, 'rb') as f:
+                        retriever = pickle.load(f)
                     
                 # Re-attach custom tokenizer just in case
                 if hasattr(retriever, 'tokenizer'):
