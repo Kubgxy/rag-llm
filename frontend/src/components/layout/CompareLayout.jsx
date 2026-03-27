@@ -1,12 +1,14 @@
 import { MessageSquare, FileText, ThumbsUp, ThumbsDown } from 'lucide-react'
 import ChatMessage from '../chat/ChatMessage.jsx'
 import ChatInput from '../chat/ChatInput.jsx'
+import ThinkingBlock from '../chat/ThinkingBlock.jsx'
 import { useChatStore } from '../../stores/chatStore.js'
 import { useSessionStore } from '../../stores/sessionStore.js'
 import { useDocumentStore } from '../../stores/documentStore.js'
 import { chatCompare } from '../../services/api.js'
 import { useToast } from '../ui/Toast.jsx'
 import ReactMarkdown from 'react-markdown'
+import React from 'react'
 
 /**
  * CompareLayout - Side-by-side comparison of 2 AI models
@@ -23,7 +25,7 @@ export function CompareLayout({
 }) {
   const setPreviewPdf = useDocumentStore(state => state.setPreviewPdf)
   const {
-    arenaMessages,
+    getArenaMessages,
     arenaModelA,
     arenaModelB,
     setArenaModelA,
@@ -37,6 +39,35 @@ export function CompareLayout({
   const { getSessionId } = useSessionStore()
   const { addToast } = useToast()
 
+  // Get current session ID and arena messages for this session
+  const sessionId = getSessionId()
+  const arenaMessages = getArenaMessages(sessionId)
+
+  // State สำหรับ tracking expanded state ของ thinking blocks
+  const [thinkingExpanded, setThinkingExpanded] = React.useState({})
+
+  // ฟังก์ชันสำหรับแปลง citation ให้เป็นตัวเลข (เหมือน ChatMessage)
+  const processContent = (text, citations) => {
+    if (!text) return text
+    let citeCounter = 1
+
+    // ค้นหา pattern เช่น [RAG_document.pdf หน้า 5, 6] หรือ [หน้า 5]
+    return text.replace(/\[(?:([^\]]+?\.pdf)\s+)?หน้า\s*([0-9\s,\-]+)\]/gi, (match, fileName, pages) => {
+      const resolvedFileName = (fileName || (citations && citations.length > 0 ? citations[0].file_name : ''))?.trim()
+      const resolvedPages = pages?.trim()
+
+      const payload = encodeURIComponent(JSON.stringify({
+        file: resolvedFileName,
+        pages: resolvedPages,
+        original: match
+      }))
+
+      const res = `[${citeCounter}](#cite:${payload})`
+      citeCounter++
+      return res
+    })
+  }
+
   const handleSendMessage = async (query) => {
     if (!query.trim() || isArenaLoading || !arenaModelA || !arenaModelB) {
       if (!arenaModelA || !arenaModelB) {
@@ -45,16 +76,15 @@ export function CompareLayout({
       return
     }
 
-    addArenaUserMessage(query)
+    addArenaUserMessage(sessionId, query)
     setArenaLoading(true)
 
     try {
       // ☑️ ใช้ session id เดียวกับ normal mode เพื่อเข้าถึงเอกสารเดียวกัน
-      const sessionId = getSessionId()
       const result = await chatCompare(query, arenaModelA, arenaModelB, sessionId)
 
       // เพิ่ม response ของทั้ง 2 โมเดล
-      addArenaResponse({
+      addArenaResponse(sessionId, {
         responseA: result.response_a,
         responseB: result.response_b,
       })
@@ -191,20 +221,77 @@ export function CompareLayout({
                           โมเดล A: {msg.responseA?.model_name}
                         </div>
                         {msg.responseA?.thinking && (
-                          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                            <details className="text-xs">
-                              <summary className="cursor-pointer font-semibold text-blue-700 dark:text-blue-300">
-                                🧠 ความคิด...
-                              </summary>
-                              <div className="mt-2 text-blue-600 dark:text-blue-400 whitespace-pre-wrap">
-                                {msg.responseA.thinking}
-                              </div>
-                            </details>
+                          <div className="mb-2">
+                            <ThinkingBlock
+                              thinking={msg.responseA.thinking}
+                              isExpanded={thinkingExpanded[`${i}-a`] || false}
+                              onToggle={() => setThinkingExpanded(prev => ({
+                                ...prev,
+                                [`${i}-a`]: !prev[`${i}-a`]
+                              }))}
+                              messageId={`${i}-a`}
+                            />
                           </div>
                         )}
-                        <div className="bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-4 prose-chat">
+                        <div className="bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-4 text-sm leading-relaxed prose-chat">
                           {msg.responseA?.answer && msg.responseA.answer.trim() ? (
-                            <ReactMarkdown>{msg.responseA.answer}</ReactMarkdown>
+                            <>
+                              <ReactMarkdown
+                                components={{
+                                  a: ({node, href, children, ...props}) => {
+                                    if (href?.startsWith('#cite:')) {
+                                      try {
+                                        const dataStr = decodeURIComponent(href.replace('#cite:', ''))
+                                        const data = JSON.parse(dataStr)
+                                        const firstPage = data.pages ? data.pages.split(/[,-]+/)[0].trim() : null
+
+                                        return (
+                                          <button
+                                            onClick={(e) => {
+                                              e.preventDefault()
+                                              if (data.file) {
+                                                setPreviewPdf(data.file, firstPage)
+                                              }
+                                            }}
+                                            title={data.original?.replace(/[\[\]]/g, '')}
+                                            className="inline-flex cursor-pointer items-center justify-center bg-primary-100 hover:bg-primary-200 dark:bg-primary-900/40 dark:hover:bg-primary-800/60 text-primary-700 dark:text-primary-300 rounded text-[11px] font-bold px-1.5 py-0.5 mx-0.5 transition-colors align-baseline"
+                                          >
+                                            {children}
+                                          </button>
+                                        )
+                                      } catch(e) {
+                                        // parse error
+                                      }
+                                    }
+                                    return <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:underline" {...props}>{children}</a>
+                                  }
+                                }}
+                              >
+                                {processContent(msg.responseA.answer, msg.responseA.citations)}
+                              </ReactMarkdown>
+
+                              {/* Citations section */}
+                              {msg.responseA.citations && msg.responseA.citations.length > 0 && (
+                                <div className="mt-4 pt-3 border-t border-surface-200 dark:border-surface-700">
+                                  <div className="text-xs font-medium text-surface-500 mb-2 flex items-center gap-1">
+                                    <FileText className="w-3 h-3" />
+                                    แหล่งที่มา (อ้างอิง)
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {msg.responseA.citations.map((cite, idx) => (
+                                      <button
+                                        key={idx}
+                                        onClick={() => setPreviewPdf(cite.file_name, cite.page_label)}
+                                        className="text-xs bg-surface-200 hover:bg-surface-300 dark:bg-surface-700 dark:hover:bg-surface-600 px-2 py-1 rounded-md text-surface-700 dark:text-surface-300 cursor-pointer transition-colors border-none text-left"
+                                        title={cite.text_snippet ? cite.text_snippet.trim() : ''}
+                                      >
+                                        {cite.file_name} <span className="opacity-60">(หน้า {cite.page_label})</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </>
                           ) : (
                             <span className="text-surface-500 italic">ไม่มีคำตอบ</span>
                           )}
@@ -212,7 +299,7 @@ export function CompareLayout({
                         {/* Vote Buttons for Model A */}
                         <div className="flex gap-2">
                           <button
-                            onClick={() => setArenaVote(i, 'a', msg.votes?.a === 'thumbs_up' ? null : 'thumbs_up')}
+                            onClick={() => setArenaVote(sessionId, i, 'a', msg.votes?.a === 'thumbs_up' ? null : 'thumbs_up')}
                             className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg transition-colors ${
                               msg.votes?.a === 'thumbs_up'
                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
@@ -223,7 +310,7 @@ export function CompareLayout({
                             <span className="text-xs font-medium">ดี</span>
                           </button>
                           <button
-                            onClick={() => setArenaVote(i, 'a', msg.votes?.a === 'thumbs_down' ? null : 'thumbs_down')}
+                            onClick={() => setArenaVote(sessionId, i, 'a', msg.votes?.a === 'thumbs_down' ? null : 'thumbs_down')}
                             className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg transition-colors ${
                               msg.votes?.a === 'thumbs_down'
                                 ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
@@ -243,20 +330,77 @@ export function CompareLayout({
                           โมเดล B: {msg.responseB?.model_name}
                         </div>
                         {msg.responseB?.thinking && (
-                          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                            <details className="text-xs">
-                              <summary className="cursor-pointer font-semibold text-blue-700 dark:text-blue-300">
-                                🧠 ความคิด...
-                              </summary>
-                              <div className="mt-2 text-blue-600 dark:text-blue-400 whitespace-pre-wrap">
-                                {msg.responseB.thinking}
-                              </div>
-                            </details>
+                          <div className="mb-2">
+                            <ThinkingBlock
+                              thinking={msg.responseB.thinking}
+                              isExpanded={thinkingExpanded[`${i}-b`] || false}
+                              onToggle={() => setThinkingExpanded(prev => ({
+                                ...prev,
+                                [`${i}-b`]: !prev[`${i}-b`]
+                              }))}
+                              messageId={`${i}-b`}
+                            />
                           </div>
                         )}
-                        <div className="bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-4 prose-chat">
+                        <div className="bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-4 text-sm leading-relaxed prose-chat">
                           {msg.responseB?.answer && msg.responseB.answer.trim() ? (
-                            <ReactMarkdown>{msg.responseB.answer}</ReactMarkdown>
+                            <>
+                              <ReactMarkdown
+                                components={{
+                                  a: ({node, href, children, ...props}) => {
+                                    if (href?.startsWith('#cite:')) {
+                                      try {
+                                        const dataStr = decodeURIComponent(href.replace('#cite:', ''))
+                                        const data = JSON.parse(dataStr)
+                                        const firstPage = data.pages ? data.pages.split(/[,-]+/)[0].trim() : null
+
+                                        return (
+                                          <button
+                                            onClick={(e) => {
+                                              e.preventDefault()
+                                              if (data.file) {
+                                                setPreviewPdf(data.file, firstPage)
+                                              }
+                                            }}
+                                            title={data.original?.replace(/[\[\]]/g, '')}
+                                            className="inline-flex cursor-pointer items-center justify-center bg-primary-100 hover:bg-primary-200 dark:bg-primary-900/40 dark:hover:bg-primary-800/60 text-primary-700 dark:text-primary-300 rounded text-[11px] font-bold px-1.5 py-0.5 mx-0.5 transition-colors align-baseline"
+                                          >
+                                            {children}
+                                          </button>
+                                        )
+                                      } catch(e) {
+                                        // parse error
+                                      }
+                                    }
+                                    return <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:underline" {...props}>{children}</a>
+                                  }
+                                }}
+                              >
+                                {processContent(msg.responseB.answer, msg.responseB.citations)}
+                              </ReactMarkdown>
+
+                              {/* Citations section */}
+                              {msg.responseB.citations && msg.responseB.citations.length > 0 && (
+                                <div className="mt-4 pt-3 border-t border-surface-200 dark:border-surface-700">
+                                  <div className="text-xs font-medium text-surface-500 mb-2 flex items-center gap-1">
+                                    <FileText className="w-3 h-3" />
+                                    แหล่งที่มา (อ้างอิง)
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {msg.responseB.citations.map((cite, idx) => (
+                                      <button
+                                        key={idx}
+                                        onClick={() => setPreviewPdf(cite.file_name, cite.page_label)}
+                                        className="text-xs bg-surface-200 hover:bg-surface-300 dark:bg-surface-700 dark:hover:bg-surface-600 px-2 py-1 rounded-md text-surface-700 dark:text-surface-300 cursor-pointer transition-colors border-none text-left"
+                                        title={cite.text_snippet ? cite.text_snippet.trim() : ''}
+                                      >
+                                        {cite.file_name} <span className="opacity-60">(หน้า {cite.page_label})</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </>
                           ) : (
                             <span className="text-surface-500 italic">ไม่มีคำตอบ</span>
                           )}
@@ -264,7 +408,7 @@ export function CompareLayout({
                         {/* Vote Buttons for Model B */}
                         <div className="flex gap-2">
                           <button
-                            onClick={() => setArenaVote(i, 'b', msg.votes?.b === 'thumbs_up' ? null : 'thumbs_up')}
+                            onClick={() => setArenaVote(sessionId, i, 'b', msg.votes?.b === 'thumbs_up' ? null : 'thumbs_up')}
                             className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg transition-colors ${
                               msg.votes?.b === 'thumbs_up'
                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
@@ -275,7 +419,7 @@ export function CompareLayout({
                             <span className="text-xs font-medium">ดี</span>
                           </button>
                           <button
-                            onClick={() => setArenaVote(i, 'b', msg.votes?.b === 'thumbs_down' ? null : 'thumbs_down')}
+                            onClick={() => setArenaVote(sessionId, i, 'b', msg.votes?.b === 'thumbs_down' ? null : 'thumbs_down')}
                             className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg transition-colors ${
                               msg.votes?.b === 'thumbs_down'
                                 ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'

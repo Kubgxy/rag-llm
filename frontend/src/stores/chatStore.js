@@ -2,16 +2,14 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 export const AVAILABLE_MODELS = [
-  { 
+  {
     id: 'scb10x/typhoon2.5-qwen3-4b',
-    name: 'Typhoon 2.5 (4B)' 
+    name: 'Typhoon 2.5 (4B)'
   },
-  { 
+  {
     id: 'iapp/chinda-qwen3-4b',
-    name: 'Chinda (4B)' 
+    name: 'Chinda (4B)'
   },
-  { id: 'llama-3.1', name: 'LLaMA 3.1' },
-  { id: 'gemma-2', name: 'Gemma 2' },
 ]
 
 export const useChatStore = create(
@@ -22,11 +20,17 @@ export const useChatStore = create(
       isLoading: false,
       selectedModel: AVAILABLE_MODELS[0].id,
 
-      // Arena chat
-      arenaMessages: [],
+      // Arena chat - store per session
+      arenaMessagesBySession: {}, // { [sessionId]: messages[] }
       arenaModelA: AVAILABLE_MODELS[0].id,
       arenaModelB: AVAILABLE_MODELS[1].id,
       isArenaLoading: false,
+
+      // Helper to get current arena messages for a session
+      getArenaMessages: (sessionId) => {
+        const state = get()
+        return state.arenaMessagesBySession[sessionId] || []
+      },
 
       // Single chat actions
       setSelectedModel: (model) => set({ selectedModel: model }),
@@ -89,50 +93,72 @@ export const useChatStore = create(
       setArenaModelA: (model) => set({ arenaModelA: model }),
       setArenaModelB: (model) => set({ arenaModelB: model }),
 
-      addArenaUserMessage: (content) =>
-        set((state) => ({
-          arenaMessages: [
-            ...state.arenaMessages,
-            { role: 'user', content, timestamp: Date.now() },
-          ],
-        })),
-
-      addArenaResponse: ({ responseA, responseB }) =>
-        set((state) => ({
-          arenaMessages: [
-            ...state.arenaMessages,
-            {
-              role: 'arena-response',
-              responseA,
-              responseB,
-              timestamp: Date.now(),
-              votes: { a: null, b: null },
-            },
-          ],
-        })),
-
-      setArenaVote: (messageIndex, side, vote) =>
+      addArenaUserMessage: (sessionId, content) =>
         set((state) => {
-          const updated = [...state.arenaMessages]
-          if (updated[messageIndex]?.votes) {
-            updated[messageIndex] = {
-              ...updated[messageIndex],
-              votes: { ...updated[messageIndex].votes, [side]: vote },
+          const currentMessages = state.arenaMessagesBySession[sessionId] || []
+          return {
+            arenaMessagesBySession: {
+              ...state.arenaMessagesBySession,
+              [sessionId]: [
+                ...currentMessages,
+                { role: 'user', content, timestamp: Date.now() },
+              ],
+            },
+          }
+        }),
+
+      addArenaResponse: (sessionId, { responseA, responseB }) =>
+        set((state) => {
+          const currentMessages = state.arenaMessagesBySession[sessionId] || []
+          return {
+            arenaMessagesBySession: {
+              ...state.arenaMessagesBySession,
+              [sessionId]: [
+                ...currentMessages,
+                {
+                  role: 'arena-response',
+                  responseA,
+                  responseB,
+                  timestamp: Date.now(),
+                  votes: { a: null, b: null },
+                },
+              ],
+            },
+          }
+        }),
+
+      setArenaVote: (sessionId, messageIndex, side, vote) =>
+        set((state) => {
+          const currentMessages = [...(state.arenaMessagesBySession[sessionId] || [])]
+          if (currentMessages[messageIndex]?.votes) {
+            currentMessages[messageIndex] = {
+              ...currentMessages[messageIndex],
+              votes: { ...currentMessages[messageIndex].votes, [side]: vote },
             }
           }
-          return { arenaMessages: updated }
+          return {
+            arenaMessagesBySession: {
+              ...state.arenaMessagesBySession,
+              [sessionId]: currentMessages,
+            },
+          }
         }),
 
       setArenaLoading: (val) => set({ isArenaLoading: val }),
 
-      clearArenaMessages: () => set({ arenaMessages: [] }),
+      clearArenaMessages: (sessionId) =>
+        set((state) => {
+          const newMessages = { ...state.arenaMessagesBySession }
+          delete newMessages[sessionId]
+          return { arenaMessagesBySession: newMessages }
+        }),
     }),
     {
       name: 'rag-chat-storage', // name of the item in the storage (must be unique)
       partialize: (state) => ({
         messages: state.messages, // now includes id, thinking, metadata
         selectedModel: state.selectedModel,
-        arenaMessages: state.arenaMessages,
+        arenaMessagesBySession: state.arenaMessagesBySession,
         arenaModelA: state.arenaModelA,
         arenaModelB: state.arenaModelB,
       }), // only persist these fields

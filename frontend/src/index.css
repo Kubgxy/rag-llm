@@ -29,7 +29,7 @@
   --color-accent-400: #38bdf8;
   --color-accent-500: #0ea5e9;
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Sarabun', 'Inter', ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer base {
@@ -39,6 +39,8 @@
 
   body {
     @apply bg-surface-50 text-surface-900 font-sans antialiased transition-colors duration-300;
+    line-height: 1.6;
+    letter-spacing: 0.01em;
   }
 
   .dark body {
@@ -46,21 +48,66 @@
   }
 }
 
-/* ReactFlow overrides */
+/* ReactFlow overrides - NotebookLM style with smooth animations */
 .react-flow__node {
-  @apply !bg-white !border-primary-300 !rounded-xl !shadow-lg !px-4 !py-2 !text-sm !font-medium;
+  @apply !bg-white !border-0 !rounded-xl !shadow-sm !px-4 !py-2 !text-sm !font-medium;
+  border: 2px solid transparent !important;
+  transition: background-color 0.2s ease,
+              box-shadow 0.2s ease,
+              border-color 0.2s ease,
+              opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Node entering animation */
+.react-flow__node.node-entering {
+  opacity: 0 !important;
+  transform: scale(0.85) translateX(-15px) !important;
+}
+
+.react-flow__node:hover {
+  background-color: #f0f0ff !important;
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
 }
 
 .dark .react-flow__node {
-  @apply !bg-surface-800 !border-primary-600 !text-surface-100;
+  @apply !bg-surface-800 !text-surface-100;
+  border: 2px solid transparent !important;
+  transition: background-color 0.2s ease,
+              box-shadow 0.2s ease,
+              border-color 0.2s ease,
+              opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.dark .react-flow__node.node-entering {
+  opacity: 0 !important;
+  transform: scale(0.85) translateX(-15px) !important;
+}
+
+.dark .react-flow__node:hover {
+  background-color: #4a4a5e !important;
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.5) !important;
+  border-color: rgba(139, 92, 246, 0.4) !important;
 }
 
 .react-flow__edge-path {
-  @apply !stroke-primary-400;
+  animation: fadeInEdge 0.4s ease-out both;
+  transition: stroke 0.3s ease !important;
+}
+
+@keyframes fadeInEdge {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .dark .react-flow__edge-path {
-  @apply !stroke-primary-500;
+  /* Edge colors are handled by inline styles in Mindmap.jsx */
 }
 
 /* Custom scrollbar */

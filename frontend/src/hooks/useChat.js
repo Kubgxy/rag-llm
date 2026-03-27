@@ -107,31 +107,43 @@ export function useChat() {
 
 export function useArenaChat() {
   const {
-    arenaMessages,
+    getArenaMessages,
     arenaModelA,
     arenaModelB,
     isArenaLoading,
     addArenaUserMessage,
     addArenaResponse,
     setArenaLoading,
-    setArenaVote,
+    setArenaVote: setArenaVoteStore,
   } = useChatStore()
+  const { getSessionId } = useSessionStore()
   const { addToast } = useToast()
+
+  // Get current session ID and arena messages for this session
+  const sessionId = getSessionId()
+  const arenaMessages = getArenaMessages(sessionId)
+
+  // Wrap setArenaVote to include sessionId
+  const setArenaVote = useCallback(
+    (messageIndex, side, vote) => {
+      setArenaVoteStore(sessionId, messageIndex, side, vote)
+    },
+    [sessionId, setArenaVoteStore]
+  )
 
   const sendArenaMessage = useCallback(
     async (query) => {
       if (!query.trim() || isArenaLoading) return
 
-      addArenaUserMessage(query)
+      addArenaUserMessage(sessionId, query)
       setArenaLoading(true)
 
       try {
-        const compareSessionId = 'compare-session-id' // หรือจะใช้ getSessionId ของคุณ
-        const data = await chatCompare(query, [arenaModelA, arenaModelB], compareSessionId)
-        
+        const data = await chatCompare(query, [arenaModelA, arenaModelB], sessionId)
+
         if (data.status === 'error') {
           addToast(data.message || 'การเปรียบเทียบล้มเหลว', 'error')
-          addArenaResponse({
+          addArenaResponse(sessionId, {
             responseA: '⚠️ เกิดข้อผิดพลาด: ' + (data.message || ''),
             responseB: '⚠️ เกิดข้อผิดพลาด: ' + (data.message || ''),
           })
@@ -139,11 +151,11 @@ export function useArenaChat() {
           // Backend ส่งกลับมาเป็น CompareResponse ที่มี response_a และ response_b
           const respA = data.response_a?.answer || 'ไม่ได้รับคำตอบจากโมเดลนี้'
           const respB = data.response_b?.answer || 'ไม่ได้รับคำตอบจากโมเดลนี้'
-          addArenaResponse({ responseA: respA, responseB: respB })
+          addArenaResponse(sessionId, { responseA: respA, responseB: respB })
         }
       } catch (err) {
         addToast(err.message || 'การเปรียบเทียบโมเดลล้มเหลว', 'error')
-        addArenaResponse({
+        addArenaResponse(sessionId, {
           responseA: '⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ',
           responseB: '⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ',
         })
@@ -152,6 +164,7 @@ export function useArenaChat() {
       }
     },
     [
+      sessionId,
       isArenaLoading,
       arenaModelA,
       arenaModelB,
