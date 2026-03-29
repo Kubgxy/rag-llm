@@ -19,13 +19,13 @@ class LLMService:
         # Load FlashRank model globally at startup
         import os
         from app.services.flashrank_reranker import FlashrankReranker
-        print("⚡ กำลังโหลด FlashRank Model: ms-marco-MiniLM-L-12-v2")
+        print(f"⚡ กำลังโหลด FlashRank Model: {settings.FLASHRANK_MODEL}")
         cache_dir = os.path.join(vector_store_service.bm25_persist_dir, "flashrank_models")
         os.makedirs(cache_dir, exist_ok=True)
         try:
             self.reranker = FlashrankReranker(
                 top_n=settings.SIMILARITY_TOP_K,
-                model_name="ms-marco-MiniLM-L-12-v2",
+                model_name=settings.FLASHRANK_MODEL,
                 cache_dir=cache_dir
             )
             print("✅ FlashRank Model พร้อมใช้งาน")
@@ -112,9 +112,19 @@ class LLMService:
 
         # 4. FlashRank Reranker (Cross-Encoder)
         if hasattr(self, 'reranker') and self.reranker:
-            self.reranker.top_n = settings.SIMILARITY_TOP_K # Ensure top_n matches current settings
+            # Update top_n if it differs from current setting
+            if self.reranker.top_n != settings.SIMILARITY_TOP_K:
+                print(f"🔧 Updating FlashRank top_n from {self.reranker.top_n} to {settings.SIMILARITY_TOP_K}")
+                # Create new instance with updated top_n
+                import os
+                cache_dir = os.path.join(vector_store_service.bm25_persist_dir, "flashrank_models")
+                self.reranker = FlashrankReranker(
+                    top_n=settings.SIMILARITY_TOP_K,
+                    model_name=settings.FLASHRANK_MODEL,
+                    cache_dir=cache_dir
+                )
             node_postprocessors = [self.reranker]
-            print(f"🎯 [Rerank] ใช้งาน FlashRank Model : ms-marco-MiniLM-L-12-v2")
+            print(f"🎯 [Rerank] ใช้งาน FlashRank Model : {settings.FLASHRANK_MODEL}")
         else:
             print(f"⚠️ [Rerank] ไม่พบ FlashRank Model ในระบบ")
             node_postprocessors = []

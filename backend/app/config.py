@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # Embedding settings
     EMBEDDING_MODEL: str = "BAAI/bge-m3"
 
+    # Reranking settings
+    FLASHRANK_MODEL: str = "ms-marco-MiniLM-L-12-v2"
+
     # OCR settings
     TESSERACT_LANG: str = "tha+eng"
     PDF_DPI: int = 300
