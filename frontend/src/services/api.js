@@ -2,7 +2,7 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
-  timeout: 150000, // 🔧 เพิ่มเป็น 150 วินาที (backend บางทีช้า 60+ วินาที)
+  timeout: 600000, // โหมด CPU อาจใช้เวลานาน ต้องกัน frontend timeout ตัดก่อน
   // [เพิ่ม] Header นี้สำคัญมากสำหรับทะลวงหน้าเตือนของ Ngrok
   headers: {
     'ngrok-skip-browser-warning': 'true',
@@ -131,6 +131,30 @@ export const suggestTitle = async (query, modelName = 'typhoon-2.5') => {
     query,
     model_name: modelName,
   })
+  return data
+}
+
+/**
+ * Get global runtime device
+ * GET /runtime/status
+ */
+export const getRuntimeStatus = async () => {
+  const { data } = await api.get('/runtime/status')
+  return data
+}
+
+/**
+ * Set global runtime device
+ * PUT /runtime/device
+ * @param {string} device - cpu|gpu
+ * @param {string[]} modelNames - optional models to warmup after switch
+ */
+export const setRuntimeDevice = async (device, modelNames = []) => {
+  const payload = { device }
+  if (Array.isArray(modelNames) && modelNames.length > 0) {
+    payload.model_names = modelNames
+  }
+  const { data } = await api.put('/runtime/device', payload)
   return data
 }
 

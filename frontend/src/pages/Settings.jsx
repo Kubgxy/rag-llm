@@ -1,8 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, Plus, Trash2, Pencil, Check, X, Palette, Smile } from 'lucide-react'
+import { ChevronLeft, Plus, Trash2, Pencil, Check, X, Palette, Smile, Cpu, Server } from 'lucide-react'
 import { useCategoryStore } from '../stores/categoryStore.js'
+import { useChatStore } from '../stores/chatStore.js'
 import { useLanguageStore } from '../stores/languageStore.js'
+import { useRuntimeStore } from '../stores/runtimeStore.js'
+import { useToast } from '../components/ui/Toast.jsx'
 
 const EMOJI_LIST = ['💼', '👤', '🔬', '📚', '🎯', '💡', '🎨', '🏠', '🚀', '⭐', '🔥', '💰', '🎓', '🏃', '🎵', '📝', '🌟', '🎮', '📊', '🛠️', '🍕', '✈️', '🏆', '❤️', '🌈', '🔔', '📱', '💻', '🎪', '🎭']
 
@@ -22,7 +25,16 @@ const COLOR_PRESETS = [
 export default function Settings() {
   const navigate = useNavigate()
   const { categories, createCategory, updateCategory, deleteCategory } = useCategoryStore()
+  const { selectedModel } = useChatStore()
   const { t } = useLanguageStore()
+  const { addToast } = useToast()
+  const { device, isLoading: runtimeLoading, fetchRuntime, updateRuntime, isInitialized } = useRuntimeStore()
+
+  useEffect(() => {
+    fetchRuntime().catch(() => {
+      addToast(t('settingsRuntimeLoadError'), 'error')
+    })
+  }, [fetchRuntime, addToast, t])
 
   const getCategoryLabel = (category) => {
     if (category.id === 'work') return t('categoryWork')
@@ -31,12 +43,22 @@ export default function Settings() {
     return category.name
   }
 
+  const tr = (key, vars = {}) => {
+    let text = t(key)
+    Object.entries(vars).forEach(([name, value]) => {
+      text = text.replace(`{${name}}`, String(value))
+    })
+    return text
+  }
+
   // Form state
   const [isCreating, setIsCreating] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [formData, setFormData] = useState({ name: '', color: '#3b82f6', icon: '📁' })
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showColorPicker, setShowColorPicker] = useState(false)
+  const [confirmRuntimeOpen, setConfirmRuntimeOpen] = useState(false)
+  const [pendingRuntimeDevice, setPendingRuntimeDevice] = useState(null)
 
   const handleCreate = () => {
     if (!formData.name.trim()) return
@@ -70,6 +92,41 @@ export default function Settings() {
     setFormData({ name: '', color: '#3b82f6', icon: '📁' })
   }
 
+  const handleRuntimeSwitch = async (nextDevice) => {
+    if (runtimeLoading || device === nextDevice) return
+
+    setPendingRuntimeDevice(nextDevice)
+    setConfirmRuntimeOpen(true)
+  }
+
+  const confirmRuntimeSwitch = async () => {
+    const nextDevice = pendingRuntimeDevice
+    if (!nextDevice || runtimeLoading || device === nextDevice) {
+      setConfirmRuntimeOpen(false)
+      setPendingRuntimeDevice(null)
+      return
+    }
+
+    try {
+      // เน้น warmup เฉพาะโมเดลหลักที่ผู้ใช้ใช้อยู่ เพื่อให้สลับ runtime ได้ไว
+      await updateRuntime(nextDevice, selectedModel ? [selectedModel] : [])
+      addToast(
+        tr('settingsRuntimeUpdated', { device: nextDevice.toUpperCase() }),
+        'success'
+      )
+    } catch (err) {
+      addToast(err.message || t('settingsRuntimeUpdateError'), 'error')
+    } finally {
+      setConfirmRuntimeOpen(false)
+      setPendingRuntimeDevice(null)
+    }
+  }
+
+  const cancelRuntimeSwitch = () => {
+    setConfirmRuntimeOpen(false)
+    setPendingRuntimeDevice(null)
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-surface-50 via-primary-50/20 to-surface-100 dark:from-surface-950 dark:via-primary-950/10 dark:to-surface-900">
       {/* Header */}
@@ -88,6 +145,55 @@ export default function Settings() {
         <div className="mb-8">
           <h1 className="text-4xl font-extrabold text-surface-900 dark:text-white mb-2">{t('settingsTitlePage')}</h1>
           <p className="text-surface-600 dark:text-surface-400">{t('settingsSubtitlePage')}</p>
+        </div>
+
+        <div className="bg-white dark:bg-surface-900 rounded-3xl border border-surface-200 dark:border-surface-800 shadow-lg p-8 mb-8">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-surface-900 dark:text-white mb-1">{t('settingsRuntimeTitle')}</h2>
+            <p className="text-sm text-surface-500 dark:text-surface-400">{t('settingsRuntimeSubtitle')}</p>
+          </div>
+
+          <div className="p-5 rounded-2xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/70">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <p className="text-sm text-surface-500 dark:text-surface-400 mb-1">{t('settingsRuntimeCurrent')}</p>
+                <p className="text-xl font-bold text-surface-900 dark:text-white uppercase">
+                  {isInitialized ? device : t('settingsRuntimeLoading')}
+                </p>
+              </div>
+
+              <div className="inline-flex p-1.5 rounded-xl bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700">
+                <button
+                  onClick={() => handleRuntimeSwitch('cpu')}
+                  disabled={runtimeLoading}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+                    device === 'cpu'
+                      ? 'bg-primary-600 text-white shadow'
+                      : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'
+                  } ${runtimeLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
+                >
+                  <Cpu className="w-4 h-4" />
+                  CPU
+                </button>
+                <button
+                  onClick={() => handleRuntimeSwitch('gpu')}
+                  disabled={runtimeLoading}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+                    device === 'gpu'
+                      ? 'bg-primary-600 text-white shadow'
+                      : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'
+                  } ${runtimeLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
+                >
+                  <Server className="w-4 h-4" />
+                  GPU
+                </button>
+              </div>
+            </div>
+
+            <p className="mt-3 text-xs text-surface-500 dark:text-surface-400">
+              {t('settingsRuntimeHint')}
+            </p>
+          </div>
         </div>
 
         {/* Category Management Section */}
@@ -281,6 +387,54 @@ export default function Settings() {
           </div>
         </div>
       </main>
+
+      {confirmRuntimeOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50" onClick={cancelRuntimeSwitch} />
+          <div className="relative w-full max-w-lg rounded-2xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 shadow-2xl p-6">
+            <h3 className="text-xl font-bold text-surface-900 dark:text-white mb-2">
+              {t('settingsRuntimeConfirmTitle')}
+            </h3>
+            <p className="text-sm text-surface-600 dark:text-surface-300 mb-4">
+              {tr('settingsRuntimeConfirmMessage', {
+                from: (device || '').toUpperCase(),
+                to: (pendingRuntimeDevice || '').toUpperCase(),
+              })}
+            </p>
+
+            <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800 p-4 mb-6">
+              <p className="text-sm font-semibold text-surface-900 dark:text-white mb-1">
+                {t('settingsRuntimeReasonTitle')}
+              </p>
+              <p className="text-sm text-surface-600 dark:text-surface-300">
+                {pendingRuntimeDevice === 'gpu'
+                  ? t('settingsRuntimeReasonGPU')
+                  : t('settingsRuntimeReasonCPU')}
+              </p>
+              <p className="text-sm text-amber-600 dark:text-amber-400 mt-2 font-medium">
+                {t('settingsRuntimeDurationWarning')}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={cancelRuntimeSwitch}
+                disabled={runtimeLoading}
+                className="px-4 py-2 rounded-lg bg-surface-200 dark:bg-surface-700 hover:bg-surface-300 dark:hover:bg-surface-600 text-surface-800 dark:text-surface-200 font-medium"
+              >
+                {t('settingsRuntimeConfirmCancel')}
+              </button>
+              <button
+                onClick={confirmRuntimeSwitch}
+                disabled={runtimeLoading}
+                className="px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white font-semibold disabled:opacity-60"
+              >
+                {runtimeLoading ? t('settingsRuntimeLoading') : t('settingsRuntimeConfirmApply')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

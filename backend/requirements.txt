@@ -29,3 +29,4 @@ flashrank>=0.2.0
 python-dotenv>=1.0.0
 aiofiles>=24.0.0
 pythainlp>=5.0.0
+    

@@ -43,10 +43,13 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Normalize origins เพราะ browser ส่ง Origin แบบไม่มี trailing '/'
+normalized_origins = [origin.rstrip("/") for origin in settings.CORS_ORIGINS]
+
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS if not settings.DEBUG else ["*"],
+    allow_origins=normalized_origins if not settings.DEBUG else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

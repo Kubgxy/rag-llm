@@ -1,6 +1,7 @@
 import asyncio
 import time
-from typing import Dict, Any
+from typing import Dict, Any, Set
+import httpx
 from llama_index.llms.ollama import Ollama
 from llama_index.core import VectorStoreIndex
 from app.config import settings
@@ -33,6 +34,128 @@ class LLMService:
             print(f"⚠️ โหลด FlashRank ไม่สำเร็จ: {e}")
             self.reranker = None
 
+    def clear_cache(self):
+        """ล้าง cache ของ LLM instances ทั้งหมด เพื่อบังคับใช้ runtime ใหม่"""
+        cache_size = len(self.models_cache)
+        self.models_cache.clear()
+        print(f"🧹 ล้าง LLM cache แล้ว ({cache_size} instances)")
+
+    def _known_models(self) -> Set[str]:
+        """รวมรายชื่อโมเดลที่ควร sync กับ Ollama runner"""
+        models = {
+            settings.DEFAULT_LLM_MODEL,
+            settings.ALTERNATIVE_LLM_MODEL,
+        }
+
+        for cache_key in self.models_cache.keys():
+            model_name = cache_key.split("::", 1)[0]
+            models.add(model_name)
+
+        return {m for m in models if m}
+
+    def _ollama_runtime_options(self, runtime_device: str) -> Dict[str, Any]:
+        options: Dict[str, Any] = {"num_ctx": settings.LLM_NUM_CTX}
+
+        if runtime_device == "cpu":
+            options["num_gpu"] = 0
+            options["num_ctx"] = min(settings.LLM_NUM_CTX, settings.CPU_LLM_NUM_CTX)
+            options["num_predict"] = settings.CPU_LLM_NUM_PREDICT
+        elif settings.OLLAMA_NUM_GPU >= 0:
+            options["num_gpu"] = settings.OLLAMA_NUM_GPU
+
+        return options
+
+    def sync_ollama_runners(self, runtime_device: str, target_models=None):
+        """
+        Sync runner ของ Ollama ให้ตรง runtime ใหม่
+        - unload runner เดิมก่อน
+        - ถ้าเป็น GPU ให้ warmup ล่วงหน้าเพื่อหลีกเลี่ยงเคสต้องรัน `ollama run` ด้วยมือ
+        """
+        models: Set[str] = set()
+        if target_models:
+            models.update([m for m in target_models if isinstance(m, str) and m.strip()])
+        else:
+            # fallback เมื่อ frontend ไม่ส่ง model มา
+            models.update(self._known_models())
+
+        models = sorted(models)
+        if not models:
+            return
+
+        options = self._ollama_runtime_options(runtime_device)
+        print(f"🔄 [Runtime Sync] เริ่ม sync Ollama runners ({runtime_device}) สำหรับ {models}")
+
+        with httpx.Client(timeout=45.0) as client:
+            for model_name in models:
+                # 1) Unload runner เดิม
+                try:
+                    unload_payload = {
+                        "model": model_name,
+                        "prompt": "",
+                        "stream": False,
+                        "keep_alive": 0,
+                    }
+                    client.post(f"{settings.OLLAMA_HOST}/api/generate", json=unload_payload)
+                except Exception as e:
+                    print(f"⚠️ [Runtime Sync] unload ไม่สำเร็จ ({model_name}): {e}")
+
+                # 2) Warmup เฉพาะตอนใช้ GPU
+                if runtime_device == "gpu":
+                    try:
+                        warm_payload = {
+                            "model": model_name,
+                            "prompt": "ok",
+                            "stream": False,
+                            "keep_alive": "5m",
+                            "options": options,
+                        }
+                        client.post(f"{settings.OLLAMA_HOST}/api/generate", json=warm_payload)
+                        print(f"✅ [Runtime Sync] warmup สำเร็จ ({model_name})")
+                    except Exception as e:
+                        print(f"⚠️ [Runtime Sync] warmup ไม่สำเร็จ ({model_name}): {e}")
+
+    @staticmethod
+    def is_runtime_memory_error(error: Exception) -> bool:
+        """ตรวจว่าข้อผิดพลาดเกี่ยวกับ GPU runtime / runner allocation หรือไม่"""
+        message = str(error).lower()
+        patterns = [
+            "memory layout cannot be allocated",
+            "cuda",
+            "gpu",
+            "out of memory",
+            "cudnn",
+            "hip",
+            "metal",
+            "vram",
+            "health resp",
+            "connection refused",
+            "actively refused",
+            "dial tcp",
+            "/health",
+        ]
+        return any(pattern in message for pattern in patterns)
+
+    def fallback_to_cpu_if_needed(self, error: Exception) -> bool:
+        """
+        ถ้า runtime ปัจจุบันเป็น GPU และเจอ memory/runtime error
+        จะสลับระบบเป็น CPU อัตโนมัติพร้อมล้าง cache
+
+        Returns:
+            bool: True หากมีการ fallback สำเร็จ
+        """
+        from app.services.runtime_manager import runtime_manager
+
+        if runtime_manager.get_runtime() != "gpu":
+            return False
+
+        if not self.is_runtime_memory_error(error):
+            return False
+
+        runtime_manager.set_runtime("cpu")
+        self.clear_cache()
+        print("⚠️ [Runtime] ตรวจพบ GPU memory/runtime error -> fallback เป็น CPU อัตโนมัติ")
+        return True
+
     def get_llm(self, model_name: str) -> Ollama:
         """
         สร้างหรือดึง LLM instance จาก cache
@@ -43,15 +166,30 @@ class LLMService:
         Returns:
             Ollama LLM instance
         """
-        if model_name not in self.models_cache:
-            print(f"🤖 กำลังสร้าง LLM instance สำหรับ: {model_name}")
-            self.models_cache[model_name] = Ollama(
+        from app.services.runtime_manager import runtime_manager
+
+        runtime_device = runtime_manager.get_runtime()
+        cache_key = f"{model_name}::{runtime_device}"
+
+        if cache_key not in self.models_cache:
+            print(f"🤖 กำลังสร้าง LLM instance สำหรับ: {model_name} (runtime={runtime_device})")
+            additional_kwargs = {"num_ctx": settings.LLM_NUM_CTX}
+
+            # บังคับ CPU ด้วย num_gpu=0; โหมด GPU ให้ Ollama ใช้ค่าตามระบบ/คอนฟิก
+            if runtime_device == "cpu":
+                additional_kwargs["num_gpu"] = 0
+            elif settings.OLLAMA_NUM_GPU >= 0:
+                additional_kwargs["num_gpu"] = settings.OLLAMA_NUM_GPU
+
+            print(f"   ⚙️ Ollama options: {additional_kwargs}")
+
+            self.models_cache[cache_key] = Ollama(
                 model=model_name,
                 base_url=settings.OLLAMA_HOST,
                 request_timeout=settings.LLM_REQUEST_TIMEOUT,
-                additional_kwargs={"num_ctx": settings.LLM_NUM_CTX}
+                additional_kwargs=additional_kwargs
             )
-        return self.models_cache[model_name]
+        return self.models_cache[cache_key]
 
     async def query_with_context(
         self,
@@ -94,22 +232,6 @@ class LLMService:
         # ดึง LLM มาเตรียมไว้สำหรับ Retriever / Synthesizer
         llm = self.get_llm(model_name)
 
-        # 3. Query Fusion Retriever (Hybrid Search)
-        retrievers = [vector_retriever]
-        if bm25_retriever:
-            print("🚀 [Hybrid Search] ใช้งาน Keyword BM25 + Vector")
-            # ถ้ามี BM25 ให้จับคู่กับ Vector Search แบบ 50/50
-            fusion_retriever = QueryFusionRetriever(
-                retrievers=[vector_retriever, bm25_retriever],
-                llm=llm,
-                num_queries=1,
-                use_async=True,
-                similarity_top_k=4
-            )
-        else:
-            print("⚠️ [Search] ไม่พบ BM25 Index, ใช้เฉพาะ Vector Search ธรรมดา")
-            fusion_retriever = vector_retriever
-
         # 4. FlashRank Reranker (Cross-Encoder)
         if hasattr(self, 'reranker') and self.reranker:
             # Update top_n if it differs from current setting
@@ -149,22 +271,48 @@ class LLMService:
         # สร้าง Query Engine แบบกำหนดเองให้ใช้ Fusion Retriever + Reranker + Prompt
         # llama-index's custom Prompting via synthesize
         from llama_index.core.response_synthesizers import get_response_synthesizer
-        response_synthesizer = get_response_synthesizer(
-            llm=llm,
-            text_qa_template=qa_template
-        )
 
-        query_engine = RetrieverQueryEngine(
-            retriever=fusion_retriever,
-            response_synthesizer=response_synthesizer,
-            node_postprocessors=node_postprocessors
-        )
+        def build_query_engine(active_llm):
+            if bm25_retriever:
+                print("🚀 [Hybrid Search] ใช้งาน Keyword BM25 + Vector")
+                retriever = QueryFusionRetriever(
+                    retrievers=[vector_retriever, bm25_retriever],
+                    llm=active_llm,
+                    num_queries=1,
+                    use_async=True,
+                    similarity_top_k=4
+                )
+            else:
+                print("⚠️ [Search] ไม่พบ BM25 Index, ใช้เฉพาะ Vector Search ธรรมดา")
+                retriever = vector_retriever
+
+            response_synthesizer = get_response_synthesizer(
+                llm=active_llm,
+                text_qa_template=qa_template
+            )
+
+            return RetrieverQueryEngine(
+                retriever=retriever,
+                response_synthesizer=response_synthesizer,
+                node_postprocessors=node_postprocessors
+            )
+
+        query_engine = build_query_engine(llm)
         print(f"   ⏱️ Create query engine: {time.time() - t1:.2f}s")
 
         # Query
         print(f"🤖 [LLM] กำลังคิดคำตอบด้วย {model_name}...")
         t1 = time.time()
-        response = await asyncio.to_thread(query_engine.query, query)
+        try:
+            response = await asyncio.to_thread(query_engine.query, query)
+        except Exception as e:
+            # ถ้า GPU memory ไม่พอ ให้ fallback CPU อัตโนมัติและ retry 1 ครั้ง
+            if self.fallback_to_cpu_if_needed(e):
+                llm = self.get_llm(model_name)
+                query_engine = build_query_engine(llm)
+                response = await asyncio.to_thread(query_engine.query, query)
+            else:
+                raise
         llm_time = time.time() - t1
         print(f"   ⏱️ LLM response: {llm_time:.2f}s")
 

@@ -1,6 +1,7 @@
 import os
 from pydantic_settings import BaseSettings
 from typing import List
+from typing import Literal
 
 
 class Settings(BaseSettings):
@@ -29,6 +30,10 @@ class Settings(BaseSettings):
     ALTERNATIVE_LLM_MODEL: str = "scb10x/typhoon2.5-qwen3-4b"
     LLM_REQUEST_TIMEOUT: float = 600.0
     LLM_NUM_CTX: int = 4096
+    CPU_LLM_NUM_CTX: int = 4096
+    CPU_LLM_NUM_PREDICT: int = 256
+    LLM_RUNTIME_DEVICE: Literal["cpu", "gpu"] = "cpu"
+    OLLAMA_NUM_GPU: int = -1
 
     # Embedding settings
     EMBEDDING_MODEL: str = "BAAI/bge-m3"

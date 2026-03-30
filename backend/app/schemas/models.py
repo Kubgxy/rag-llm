@@ -47,6 +47,18 @@ class ChatRequest(BaseModel):
     session_id: str = Field(..., description="Session ID สำหรับแยกแชท")
 
 
+class RuntimeStatusResponse(BaseModel):
+    device: str = Field(..., description="Runtime device ปัจจุบัน (cpu/gpu)")
+
+
+class RuntimeUpdateRequest(BaseModel):
+    device: str = Field(..., description="Runtime device ใหม่ (cpu/gpu)")
+    model_names: Optional[List[str]] = Field(
+        default=None,
+        description="รายชื่อโมเดลที่ต้องการ warmup หลังสลับ runtime"
+    )
+
+
 class Citation(BaseModel):
     file_name: str
     page_label: str

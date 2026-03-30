@@ -121,15 +121,20 @@ class DocumentProcessorService:
     async def _generate_summary(self, index: VectorStoreIndex) -> str:
         """สร้างสรุปเนื้อหา"""
         try:
-            llm = llm_service.get_llm(settings.DEFAULT_LLM_MODEL)
-            query_engine = index.as_query_engine(
-                llm=llm,
-                similarity_top_k=3
-            )
-
             prompt = "สรุปหัวข้อและเนื้อหาสำคัญ เป็นภาษาไทยแบบกระชับ"
-            response = await asyncio.to_thread(query_engine.query, prompt)
-            return str(response)
+            llm = llm_service.get_llm(settings.DEFAULT_LLM_MODEL)
+            query_engine = index.as_query_engine(llm=llm, similarity_top_k=3)
+
+            try:
+                response = await asyncio.to_thread(query_engine.query, prompt)
+                return str(response)
+            except Exception as e:
+                if llm_service.fallback_to_cpu_if_needed(e):
+                    llm = llm_service.get_llm(settings.DEFAULT_LLM_MODEL)
+                    query_engine = index.as_query_engine(llm=llm, similarity_top_k=3)
+                    response = await asyncio.to_thread(query_engine.query, prompt)
+                    return str(response)
+                raise
 
         except Exception as e:
             print(f"⚠️ [Summary Error] {str(e)}")
@@ -138,12 +143,6 @@ class DocumentProcessorService:
     async def _generate_mindmap(self, index: VectorStoreIndex) -> Dict:
         """สร้าง Mindmap JSON พร้อม hierarchy structure"""
         try:
-            llm = llm_service.get_llm(settings.DEFAULT_LLM_MODEL)
-            query_engine = index.as_query_engine(
-                llm=llm,
-                similarity_top_k=3
-            )
-
             # Request structured markdown hierarchy for expandable mindmap
             prompt = """จงอ่านเอกสารนี้แล้วสร้าง Mind Map แบบ Hierarchical Tree โดยใช้รูปแบบ Markdown
 
@@ -170,7 +169,19 @@ class DocumentProcessorService:
 #### รายละเอียด 2.1.1
 
 เนื้อหาเอกสาร:"""
-            response = await asyncio.to_thread(query_engine.query, prompt)
+            llm = llm_service.get_llm(settings.DEFAULT_LLM_MODEL)
+            query_engine = index.as_query_engine(llm=llm, similarity_top_k=3)
+
+            try:
+                response = await asyncio.to_thread(query_engine.query, prompt)
+            except Exception as e:
+                if llm_service.fallback_to_cpu_if_needed(e):
+                    llm = llm_service.get_llm(settings.DEFAULT_LLM_MODEL)
+                    query_engine = index.as_query_engine(llm=llm, similarity_top_k=3)
+                    response = await asyncio.to_thread(query_engine.query, prompt)
+                else:
+                    raise
+
             hierarchy_text = str(response)
 
             # Parse markdown hierarchy เป็น tree structure

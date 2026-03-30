@@ -188,12 +188,41 @@ Content-Type: application/json
 GET /health
 ```
 
+#### 5. Runtime Status
+
+```http
+GET /runtime/status
+```
+
+Response:
+
+```json
+{
+  "device": "gpu"
+}
+```
+
+#### 6. Update Runtime (Global)
+
+```http
+PUT /runtime/device
+Content-Type: application/json
+
+{
+  "device": "cpu"
+}
+```
+
+> เมื่อเปลี่ยน runtime แล้ว request ถัดไปของทุก session จะใช้ runtime ใหม่ทันที
+
 ## 🔧 Configuration
 
 แก้ไขการตั้งค่าได้ที่ `app/config.py` หรือใช้ `.env` file:
 
 - `EMBEDDING_MODEL`: โมเดล embedding (default: `BAAI/bge-m3`)
 - `DEFAULT_LLM_MODEL`: โมเดล LLM หลัก
+- `LLM_RUNTIME_DEVICE`: runtime เริ่มต้นของโมเดล (`cpu` หรือ `gpu`)
+- `OLLAMA_NUM_GPU`: จำนวน GPU ที่ให้ Ollama ใช้ (`-1` = auto, `0` = บังคับ CPU)
 - `QDRANT_MODE`: โหมดการทำงานของ Qdrant
   - `memory`: เก็บข้อมูลใน RAM (แนะนำสำหรับ dev) ✅
   - `disk`: เก็บข้อมูลถาวร (สำหรับ production)
@@ -212,7 +241,7 @@ curl http://localhost:11434/api/tags
 # Windows: ปิดแล้วเปิดใหม่ผ่าน Start Menu
 # Linux/macOS:
 pkill ollama
-ollama serve
+  ollama serve
 ```
 
 ### 2. Tesseract ไม่พบ
