@@ -5,16 +5,18 @@ import { useChatStore } from '../../stores/chatStore.js'
 import { useDocumentStore } from '../../stores/documentStore.js'
 import { useSessionStore } from '../../stores/sessionStore.js'
 import { useThemeStore } from '../../stores/themeStore.js'
+import { useLanguageStore } from '../../stores/languageStore.js'
 
 export default function Sidebar({ isCollapsed, toggleSidebar }) {
   const { history, activeSessionId, setActiveSession, deleteSession } = useChatHistoryStore()
   const { theme, toggleTheme } = useThemeStore()
+  const { t } = useLanguageStore()
   const location = useLocation()
   const navigate = useNavigate()
 
   const NAV_LINKS = [
-    { path: '/', label: 'พื้นที่ทำงาน', icon: BookOpen },
-    { path: '/arena', label: 'สนามประลอง', icon: Swords },
+    { path: '/', label: t('workspace'), icon: BookOpen },
+    { path: '/arena', label: t('arena'), icon: Swords },
   ]
 
   const handleNewChat = () => {

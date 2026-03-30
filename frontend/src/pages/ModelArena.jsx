@@ -3,8 +3,10 @@ import { useChatStore, AVAILABLE_MODELS } from '../stores/chatStore.js'
 import ArenaChat from '../components/arena/ArenaChat.jsx'
 import ChatInput from '../components/chat/ChatInput.jsx'
 import { useArenaChat } from '../hooks/useChat.js'
+import { useLanguageStore } from '../stores/languageStore.js'
 
 export default function ModelArena() {
+  const { t } = useLanguageStore()
   const {
     arenaModelA,
     arenaModelB,
@@ -24,11 +26,11 @@ export default function ModelArena() {
                <Swords className="w-5 h-5 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-surface-900 dark:text-white tracking-tight">
-              สนามประลองโมเดล
+              {t('arenaPageTitle')}
             </h1>
           </div>
           <p className="text-surface-500 dark:text-surface-400 mt-2 text-sm ml-[52px]">
-            เปรียบเทียบ AI สองโมเดลกับคำถามเดียวกันเพื่อหาคำตอบที่ดีที่สุด
+            {t('arenaPageSubtitle')}
           </p>
         </div>
 
@@ -37,7 +39,7 @@ export default function ModelArena() {
           {/* Model A */}
           <div className="flex-1 min-w-[160px]">
             <label className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1.5 block px-1">
-              โมเดล A
+              {t('arenaModelALabel')}
             </label>
             <div className="relative">
               <select
@@ -67,7 +69,7 @@ export default function ModelArena() {
           {/* Model B */}
           <div className="flex-1 min-w-[160px]">
             <label className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1.5 block px-1">
-              โมเดล B
+              {t('arenaModelBLabel')}
             </label>
             <div className="relative">
               <select
@@ -103,7 +105,7 @@ export default function ModelArena() {
           <ChatInput
             onSend={sendArenaMessage}
             isLoading={isArenaLoading}
-            placeholder="ถามคำถามเดียวกันกับทั้งสองโมเดล..."
+            placeholder={t('arenaInputPlaceholder')}
           />
         </div>
       </div>

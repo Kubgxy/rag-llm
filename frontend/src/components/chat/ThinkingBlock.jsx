@@ -1,12 +1,21 @@
-import React, { useState } from 'react'
+import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import { ChevronDown, Brain } from 'lucide-react'
+import { useLanguageStore } from '../../stores/languageStore.js'
 
 /**
  * ThinkingBlock - แสดง AI thinking process (Gemini/Copilot style)
  * สร้างได้ ขยาย/ย่อได้ โดยมี animation
  */
 export function ThinkingBlock({ thinking, isExpanded, onToggle, messageId }) {
+  const { t } = useLanguageStore()
+  const tr = (key, vars = {}) => {
+    let text = t(key)
+    Object.entries(vars).forEach(([name, value]) => {
+      text = text.replace(`{${name}}`, String(value))
+    })
+    return text
+  }
   if (!thinking) return null
 
   // ลบ <think> tags ออก
@@ -32,9 +41,9 @@ export function ThinkingBlock({ thinking, isExpanded, onToggle, messageId }) {
             }`}
           />
           <Brain size={18} className="text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
-          <span className="text-blue-900 dark:text-blue-200 font-semibold">AI Thinking Process</span>
+          <span className="text-blue-900 dark:text-blue-200 font-semibold">{t('thinkingTitle')}</span>
           <span className="text-[10px] px-2 py-0.5 bg-blue-200 dark:bg-blue-800/80 text-blue-700 dark:text-blue-300 rounded-full font-mono">
-            ~{tokenEstimate} tokens
+            {tr('thinkingTokens', { count: tokenEstimate })}
           </span>
         </div>
       </button>

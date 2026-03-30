@@ -2,9 +2,11 @@ import ReactMarkdown from 'react-markdown'
 import { Bot, User, FileText } from 'lucide-react'
 import ThinkingBlock from './ThinkingBlock'
 import { useDocumentStore } from '../../stores/documentStore'
+import { useLanguageStore } from '../../stores/languageStore.js'
 
 export default function ChatMessage({ message, onThinkingToggle }) {
   const setPreviewPdf = useDocumentStore(state => state.setPreviewPdf)
+  const { t } = useLanguageStore()
   // Support both old format (role, content props) and new format (message object)
   const msg = typeof message === 'string'
     ? { role: 'user', content: message, thinking: null, metadata: {} }
@@ -53,6 +55,7 @@ export default function ChatMessage({ message, onThinkingToggle }) {
 
       {/* Message bubble */}
       <div className={`max-w-[80%] ${isUser ? 'flex-row-reverse' : ''}`}>
+        
         {/* Thinking block (if exists) */}
         {!isUser && thinking && (
           <div className="mb-2">
@@ -119,7 +122,7 @@ export default function ChatMessage({ message, onThinkingToggle }) {
                 <div className="mt-4 pt-3 border-t border-surface-200 dark:border-surface-700">
                   <div className="text-xs font-medium text-surface-500 mb-2 flex items-center gap-1">
                     <FileText className="w-3 h-3" />
-                    แหล่งที่มา (อ้างอิง)
+                    {t('citationSourceTitle')}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {metadata.citations.map((cite, idx) => (
@@ -129,7 +132,7 @@ export default function ChatMessage({ message, onThinkingToggle }) {
                         className="text-xs bg-surface-200 hover:bg-surface-300 dark:bg-surface-700 dark:hover:bg-surface-600 px-2 py-1 rounded-md text-surface-700 dark:text-surface-300 cursor-pointer transition-colors border-none text-left"
                         title={cite.text_snippet ? cite.text_snippet.trim() : ''}
                       >
-                        {cite.file_name} <span className="opacity-60">(หน้า {cite.page_label})</span>
+                        {cite.file_name} <span className="opacity-60">({t('citationPageLabel')} {cite.page_label})</span>
                       </button>
                     ))}
                   </div>

@@ -5,6 +5,7 @@ import { useSessionStore } from '../stores/sessionStore.js'
 import { useChatHistoryStore } from '../stores/chatHistoryStore.js'
 import { useDocumentStore } from '../stores/documentStore.js'
 import { useToast } from '../components/ui/Toast.jsx'
+import { useLanguageStore } from '../stores/languageStore.js'
 
 export function useChat() {
   const {
@@ -17,6 +18,14 @@ export function useChat() {
   } = useChatStore()
   const { getSessionId } = useSessionStore()
   const { addToast } = useToast()
+  const t = useLanguageStore.getState().t
+  const tr = (key, vars = {}) => {
+    let text = t(key)
+    Object.entries(vars).forEach(([name, value]) => {
+      text = text.replace(`{${name}}`, String(value))
+    })
+    return text
+  }
 
   const syncToHistory = (sessionId, customTitle = null) => {
     // This timeout ensures Zustand state updates have completed before syncing
@@ -58,8 +67,8 @@ export function useChat() {
 
         // Backend อาจส่ง { status: "error", message: "..." } กลับมาแทน
         if (data.status === 'error') {
-          addToast(data.message || 'โมเดลตอบกลับไม่สำเร็จ', 'error')
-          addAssistantMessage('⚠️ เกิดข้อผิดพลาด: ' + (data.message || 'ไม่ทราบสาเหตุ'))
+          addToast(data.message || t('chatModelResponseFailed'), 'error')
+          addAssistantMessage(tr('chatAssistantError', { message: data.message || t('chatUnknownCause') }))
         } else {
           // Create message object with thinking support
           const messageData = {
@@ -92,8 +101,8 @@ export function useChat() {
           }
         }
       } catch (err) {
-        addToast(err.message || 'ไม่สามารถเชื่อมต่อกับ Server ได้', 'error')
-        addAssistantMessage('⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง')
+        addToast(err.message || t('chatConnectionFailed'), 'error')
+        addAssistantMessage(t('chatAssistantConnectionError'))
       } finally {
         setLoading(false)
         if (sessionId) syncToHistory(sessionId);
@@ -118,6 +127,14 @@ export function useArenaChat() {
   } = useChatStore()
   const { getSessionId } = useSessionStore()
   const { addToast } = useToast()
+  const t = useLanguageStore.getState().t
+  const tr = (key, vars = {}) => {
+    let text = t(key)
+    Object.entries(vars).forEach(([name, value]) => {
+      text = text.replace(`{${name}}`, String(value))
+    })
+    return text
+  }
 
   // Get current session ID and arena messages for this session
   const sessionId = getSessionId()
@@ -142,22 +159,22 @@ export function useArenaChat() {
         const data = await chatCompare(query, [arenaModelA, arenaModelB], sessionId)
 
         if (data.status === 'error') {
-          addToast(data.message || 'การเปรียบเทียบล้มเหลว', 'error')
+          addToast(data.message || t('chatCompareFailed'), 'error')
           addArenaResponse(sessionId, {
-            responseA: '⚠️ เกิดข้อผิดพลาด: ' + (data.message || ''),
-            responseB: '⚠️ เกิดข้อผิดพลาด: ' + (data.message || ''),
+            responseA: tr('chatAssistantError', { message: data.message || t('chatUnknownCause') }),
+            responseB: tr('chatAssistantError', { message: data.message || t('chatUnknownCause') }),
           })
         } else {
           // Backend ส่งกลับมาเป็น CompareResponse ที่มี response_a และ response_b
-          const respA = data.response_a?.answer || 'ไม่ได้รับคำตอบจากโมเดลนี้'
-          const respB = data.response_b?.answer || 'ไม่ได้รับคำตอบจากโมเดลนี้'
+          const respA = data.response_a?.answer || t('chatNoAnswerFromModel')
+          const respB = data.response_b?.answer || t('chatNoAnswerFromModel')
           addArenaResponse(sessionId, { responseA: respA, responseB: respB })
         }
       } catch (err) {
-        addToast(err.message || 'การเปรียบเทียบโมเดลล้มเหลว', 'error')
+        addToast(err.message || t('chatCompareModelsFailed'), 'error')
         addArenaResponse(sessionId, {
-          responseA: '⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ',
-          responseB: '⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ',
+          responseA: t('chatAssistantConnectionError'),
+          responseB: t('chatAssistantConnectionError'),
         })
       } finally {
         setArenaLoading(false)

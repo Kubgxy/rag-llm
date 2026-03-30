@@ -9,6 +9,7 @@ import { chatCompare } from '../../services/api.js'
 import { useToast } from '../ui/Toast.jsx'
 import ReactMarkdown from 'react-markdown'
 import React from 'react'
+import { useLanguageStore } from '../../stores/languageStore.js'
 
 /**
  * CompareLayout - Side-by-side comparison of 2 AI models
@@ -38,6 +39,7 @@ export function CompareLayout({
   } = useChatStore()
   const { getSessionId } = useSessionStore()
   const { addToast } = useToast()
+  const { t } = useLanguageStore()
 
   // Get current session ID and arena messages for this session
   const sessionId = getSessionId()
@@ -71,7 +73,7 @@ export function CompareLayout({
   const handleSendMessage = async (query) => {
     if (!query.trim() || isArenaLoading || !arenaModelA || !arenaModelB) {
       if (!arenaModelA || !arenaModelB) {
-        addToast('กรุณาเลือกโมเดล A และ B', 'error')
+        addToast(t('compareNeedSelectModels'), 'error')
       }
       return
     }
@@ -89,10 +91,10 @@ export function CompareLayout({
         responseB: result.response_b,
       })
 
-      addToast('ได้คำตอบจากทั้ง 2 โมเดล', 'success')
+      addToast(t('compareReceivedBothModels'), 'success')
     } catch (error) {
       console.error('Compare error:', error)
-      addToast(error.message || 'ไม่สามารถเปรียบเทียบโมเดลได้', 'error')
+      addToast(error.message || t('compareFailed'), 'error')
     } finally {
       setArenaLoading(false)
     }
@@ -111,13 +113,13 @@ export function CompareLayout({
       >
         <div className="p-4 border-b border-surface-200 dark:border-surface-800 shrink-0">
           <h2 className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-3">
-            เอกสาร
+            {t('compareDocumentsTitle')}
           </h2>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {documents.length === 0 ? (
-            <p className="text-sm text-surface-500 italic text-center mt-4">ยังไม่มีเอกสาร</p>
+            <p className="text-sm text-surface-500 italic text-center mt-4">{t('compareNoDocuments')}</p>
           ) : (
             documents.map((doc, i) => (
               <div
@@ -142,7 +144,7 @@ export function CompareLayout({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-semibold text-surface-500 dark:text-surface-400">
-                📊 โมเดล A (ซ้าย)
+                {t('compareModelALeft')}
               </label>
               <select
                 value={arenaModelA}
@@ -155,14 +157,14 @@ export function CompareLayout({
                 }}
                 className="w-full px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white text-sm hover:border-primary-400 dark:hover:border-primary-500 transition-colors cursor-pointer"
               >
-                <option value="">เลือกโมเดล A</option>
-                <option value="scb10x/typhoon2.5-qwen3-4b" disabled={arenaModelB === 'scb10x/typhoon2.5-qwen3-4b'}>Typhoon 2.5 {arenaModelB === 'scb10x/typhoon2.5-qwen3-4b' && '(ใช้โมเดล B อยู่)'}</option>
-                <option value="iapp/chinda-qwen3-4b" disabled={arenaModelB === 'iapp/chinda-qwen3-4b'}>Chinda 4B {arenaModelB === 'iapp/chinda-qwen3-4b' && '(ใช้โมเดล B อยู่)'}</option>
+                <option value="">{t('compareSelectModelA')}</option>
+                <option value="scb10x/typhoon2.5-qwen3-4b" disabled={arenaModelB === 'scb10x/typhoon2.5-qwen3-4b'}>Typhoon 2.5 {arenaModelB === 'scb10x/typhoon2.5-qwen3-4b' && t('compareUsedByModelB')}</option>
+                <option value="iapp/chinda-qwen3-4b" disabled={arenaModelB === 'iapp/chinda-qwen3-4b'}>Chinda 4B {arenaModelB === 'iapp/chinda-qwen3-4b' && t('compareUsedByModelB')}</option>
               </select>
             </div>
             <div className="space-y-2">
               <label className="text-xs font-semibold text-surface-500 dark:text-surface-400">
-                📊 โมเดล B (ขวา)
+                {t('compareModelBRight')}
               </label>
               <select
                 value={arenaModelB}
@@ -175,9 +177,9 @@ export function CompareLayout({
                 }}
                 className="w-full px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white text-sm hover:border-primary-400 dark:hover:border-primary-500 transition-colors cursor-pointer"
               >
-                <option value="">เลือกโมเดล B</option>
-                <option value="scb10x/typhoon2.5-qwen3-4b" disabled={arenaModelA === 'scb10x/typhoon2.5-qwen3-4b'}>Typhoon 2.5 {arenaModelA === 'scb10x/typhoon2.5-qwen3-4b' && '(ใช้โมเดล A อยู่)'}</option>
-                <option value="iapp/chinda-qwen3-4b" disabled={arenaModelA === 'iapp/chinda-qwen3-4b'}>Chinda 4B {arenaModelA === 'iapp/chinda-qwen3-4b' && '(ใช้โมเดล A อยู่)'}</option>
+                <option value="">{t('compareSelectModelB')}</option>
+                <option value="scb10x/typhoon2.5-qwen3-4b" disabled={arenaModelA === 'scb10x/typhoon2.5-qwen3-4b'}>Typhoon 2.5 {arenaModelA === 'scb10x/typhoon2.5-qwen3-4b' && t('compareUsedByModelA')}</option>
+                <option value="iapp/chinda-qwen3-4b" disabled={arenaModelA === 'iapp/chinda-qwen3-4b'}>Chinda 4B {arenaModelA === 'iapp/chinda-qwen3-4b' && t('compareUsedByModelA')}</option>
               </select>
             </div>
           </div>
@@ -191,10 +193,10 @@ export function CompareLayout({
                 <MessageSquare className="w-8 h-8 text-purple-500" />
               </div>
               <p className="text-base font-semibold text-surface-700 dark:text-surface-300">
-                เปรียบเทียบโมเดล AI
+                {t('compareEmptyTitle')}
               </p>
               <p className="text-sm text-surface-500 dark:text-surface-400 mt-2 max-w-sm">
-                เลือกโมเดลทั้ง 2 แล้วส่งคำถามเดียวกันให้กับทั้งคู่
+                {t('compareEmptySubtitle')}
               </p>
             </div>
           ) : (
@@ -204,7 +206,7 @@ export function CompareLayout({
                   return (
                     <div key={i} className="mb-8">
                       <div className="text-center text-sm font-semibold text-surface-600 dark:text-surface-400 mb-4">
-                        👤 คำถาม:
+                        {t('compareQuestionLabel')}
                       </div>
                       <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-2xl p-4">
                         {msg.content}
@@ -218,7 +220,7 @@ export function CompareLayout({
                       <div className="flex flex-col gap-3">
                         <div className="text-sm font-semibold text-surface-600 dark:text-surface-400 flex items-center gap-2">
                           <span className="inline-block w-3 h-3 rounded-full bg-indigo-500" />
-                          โมเดล A: {msg.responseA?.model_name}
+                          {t('compareModelAName')}: {msg.responseA?.model_name}
                         </div>
                         {msg.responseA?.thinking && (
                           <div className="mb-2">
@@ -275,7 +277,7 @@ export function CompareLayout({
                                 <div className="mt-4 pt-3 border-t border-surface-200 dark:border-surface-700">
                                   <div className="text-xs font-medium text-surface-500 mb-2 flex items-center gap-1">
                                     <FileText className="w-3 h-3" />
-                                    แหล่งที่มา (อ้างอิง)
+                                    {t('citationSourceTitle')}
                                   </div>
                                   <div className="flex flex-wrap gap-2">
                                     {msg.responseA.citations.map((cite, idx) => (
@@ -285,7 +287,7 @@ export function CompareLayout({
                                         className="text-xs bg-surface-200 hover:bg-surface-300 dark:bg-surface-700 dark:hover:bg-surface-600 px-2 py-1 rounded-md text-surface-700 dark:text-surface-300 cursor-pointer transition-colors border-none text-left"
                                         title={cite.text_snippet ? cite.text_snippet.trim() : ''}
                                       >
-                                        {cite.file_name} <span className="opacity-60">(หน้า {cite.page_label})</span>
+                                        {cite.file_name} <span className="opacity-60">({t('citationPageLabel')} {cite.page_label})</span>
                                       </button>
                                     ))}
                                   </div>
@@ -293,7 +295,7 @@ export function CompareLayout({
                               )}
                             </>
                           ) : (
-                            <span className="text-surface-500 italic">ไม่มีคำตอบ</span>
+                            <span className="text-surface-500 italic">{t('compareNoAnswer')}</span>
                           )}
                         </div>
                         {/* Vote Buttons for Model A */}
@@ -307,7 +309,7 @@ export function CompareLayout({
                             }`}
                           >
                             <ThumbsUp size={16} />
-                            <span className="text-xs font-medium">ดี</span>
+                            <span className="text-xs font-medium">{t('compareVoteGood')}</span>
                           </button>
                           <button
                             onClick={() => setArenaVote(sessionId, i, 'a', msg.votes?.a === 'thumbs_down' ? null : 'thumbs_down')}
@@ -318,7 +320,7 @@ export function CompareLayout({
                             }`}
                           >
                             <ThumbsDown size={16} />
-                            <span className="text-xs font-medium">แย่</span>
+                            <span className="text-xs font-medium">{t('compareVoteBad')}</span>
                           </button>
                         </div>
                       </div>
@@ -327,7 +329,7 @@ export function CompareLayout({
                       <div className="flex flex-col gap-3">
                         <div className="text-sm font-semibold text-surface-600 dark:text-surface-400 flex items-center gap-2">
                           <span className="inline-block w-3 h-3 rounded-full bg-purple-500" />
-                          โมเดล B: {msg.responseB?.model_name}
+                          {t('compareModelBName')}: {msg.responseB?.model_name}
                         </div>
                         {msg.responseB?.thinking && (
                           <div className="mb-2">
@@ -384,7 +386,7 @@ export function CompareLayout({
                                 <div className="mt-4 pt-3 border-t border-surface-200 dark:border-surface-700">
                                   <div className="text-xs font-medium text-surface-500 mb-2 flex items-center gap-1">
                                     <FileText className="w-3 h-3" />
-                                    แหล่งที่มา (อ้างอิง)
+                                    {t('citationSourceTitle')}
                                   </div>
                                   <div className="flex flex-wrap gap-2">
                                     {msg.responseB.citations.map((cite, idx) => (
@@ -394,7 +396,7 @@ export function CompareLayout({
                                         className="text-xs bg-surface-200 hover:bg-surface-300 dark:bg-surface-700 dark:hover:bg-surface-600 px-2 py-1 rounded-md text-surface-700 dark:text-surface-300 cursor-pointer transition-colors border-none text-left"
                                         title={cite.text_snippet ? cite.text_snippet.trim() : ''}
                                       >
-                                        {cite.file_name} <span className="opacity-60">(หน้า {cite.page_label})</span>
+                                        {cite.file_name} <span className="opacity-60">({t('citationPageLabel')} {cite.page_label})</span>
                                       </button>
                                     ))}
                                   </div>
@@ -402,7 +404,7 @@ export function CompareLayout({
                               )}
                             </>
                           ) : (
-                            <span className="text-surface-500 italic">ไม่มีคำตอบ</span>
+                            <span className="text-surface-500 italic">{t('compareNoAnswer')}</span>
                           )}
                         </div>
                         {/* Vote Buttons for Model B */}
@@ -416,7 +418,7 @@ export function CompareLayout({
                             }`}
                           >
                             <ThumbsUp size={16} />
-                            <span className="text-xs font-medium">ดี</span>
+                            <span className="text-xs font-medium">{t('compareVoteGood')}</span>
                           </button>
                           <button
                             onClick={() => setArenaVote(sessionId, i, 'b', msg.votes?.b === 'thumbs_down' ? null : 'thumbs_down')}
@@ -427,7 +429,7 @@ export function CompareLayout({
                             }`}
                           >
                             <ThumbsDown size={16} />
-                            <span className="text-xs font-medium">แย่</span>
+                            <span className="text-xs font-medium">{t('compareVoteBad')}</span>
                           </button>
                         </div>
                       </div>
@@ -460,7 +462,7 @@ export function CompareLayout({
             <ChatInput
               onSend={handleSendMessage}
               isLoading={isArenaLoading}
-              placeholder="พิมพ์คำถามเพื่อเปรียบเทียบ..."
+              placeholder={t('compareInputPlaceholder')}
             />
           </div>
         </div>

@@ -1,6 +1,8 @@
 import { ThumbsUp, ThumbsDown } from 'lucide-react'
+import { useLanguageStore } from '../../stores/languageStore.js'
 
 export default function VoteButton({ currentVote, onVote }) {
+  const { t } = useLanguageStore()
   return (
     <div className="flex items-center gap-2">
       <button
@@ -16,7 +18,7 @@ export default function VoteButton({ currentVote, onVote }) {
         id="vote-up-button"
       >
         <ThumbsUp className="w-3.5 h-3.5" />
-        ดีกว่า
+        {t('voteBetter')}
       </button>
       <button
         onClick={() => onVote(currentVote === 'down' ? null : 'down')}
@@ -31,7 +33,7 @@ export default function VoteButton({ currentVote, onVote }) {
         id="vote-down-button"
       >
         <ThumbsDown className="w-3.5 h-3.5" />
-        แย่กว่า
+        {t('voteWorse')}
       </button>
     </div>
   )

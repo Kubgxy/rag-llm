@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, Plus, Trash2, Pencil, Check, X, Palette, Smile } from 'lucide-react'
 import { useCategoryStore } from '../stores/categoryStore.js'
+import { useLanguageStore } from '../stores/languageStore.js'
 
 const EMOJI_LIST = ['💼', '👤', '🔬', '📚', '🎯', '💡', '🎨', '🏠', '🚀', '⭐', '🔥', '💰', '🎓', '🏃', '🎵', '📝', '🌟', '🎮', '📊', '🛠️', '🍕', '✈️', '🏆', '❤️', '🌈', '🔔', '📱', '💻', '🎪', '🎭']
 
@@ -21,6 +22,14 @@ const COLOR_PRESETS = [
 export default function Settings() {
   const navigate = useNavigate()
   const { categories, createCategory, updateCategory, deleteCategory } = useCategoryStore()
+  const { t } = useLanguageStore()
+
+  const getCategoryLabel = (category) => {
+    if (category.id === 'work') return t('categoryWork')
+    if (category.id === 'personal') return t('categoryPersonal')
+    if (category.id === 'research') return t('categoryResearch')
+    return category.name
+  }
 
   // Form state
   const [isCreating, setIsCreating] = useState(false)
@@ -44,7 +53,7 @@ export default function Settings() {
   }
 
   const handleDelete = (categoryId) => {
-    if (confirm('ต้องการลบหมวดหมู่นี้หรือไม่?')) {
+    if (confirm(t('settingsDeleteConfirm'))) {
       deleteCategory(categoryId)
     }
   }
@@ -70,23 +79,23 @@ export default function Settings() {
           className="flex items-center gap-2 text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors"
         >
           <ChevronLeft className="w-5 h-5" />
-          <span className="font-semibold">กลับหน้าหลัก</span>
+          <span className="font-semibold">{t('settingsBackHome')}</span>
         </button>
       </header>
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-6 py-12">
         <div className="mb-8">
-          <h1 className="text-4xl font-extrabold text-surface-900 dark:text-white mb-2">การตั้งค่า</h1>
-          <p className="text-surface-600 dark:text-surface-400">จัดการหมวดหมู่และการตั้งค่าต่างๆ</p>
+          <h1 className="text-4xl font-extrabold text-surface-900 dark:text-white mb-2">{t('settingsTitlePage')}</h1>
+          <p className="text-surface-600 dark:text-surface-400">{t('settingsSubtitlePage')}</p>
         </div>
 
         {/* Category Management Section */}
         <div className="bg-white dark:bg-surface-900 rounded-3xl border border-surface-200 dark:border-surface-800 shadow-lg p-8">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-surface-900 dark:text-white mb-1">จัดการหมวดหมู่</h2>
-              <p className="text-sm text-surface-500 dark:text-surface-400">เพิ่ม แก้ไข และจัดการหมวดหมู่ของแชท</p>
+              <h2 className="text-2xl font-bold text-surface-900 dark:text-white mb-1">{t('settingsCategoryTitle')}</h2>
+              <p className="text-sm text-surface-500 dark:text-surface-400">{t('settingsCategorySubtitle')}</p>
             </div>
             {!isCreating && !editingId && (
               <button
@@ -94,7 +103,7 @@ export default function Settings() {
                 className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl transition-colors font-semibold shadow-md"
               >
                 <Plus className="w-4 h-4" />
-                เพิ่มหมวดหมู่
+                {t('settingsAddCategory')}
               </button>
             )}
           </div>
@@ -103,20 +112,20 @@ export default function Settings() {
           {(isCreating || editingId) && (
             <div className="mb-6 p-6 bg-surface-50 dark:bg-surface-800 rounded-2xl border-2 border-primary-300 dark:border-primary-700">
               <h3 className="text-lg font-semibold text-surface-900 dark:text-white mb-4">
-                {isCreating ? 'สร้างหมวดหมู่ใหม่' : 'แก้ไขหมวดหมู่'}
+                {isCreating ? t('settingsCreateCategory') : t('settingsEditCategory')}
               </h3>
 
               <div className="space-y-4">
                 {/* Name Input */}
                 <div>
                   <label className="block text-sm font-semibold text-surface-700 dark:text-surface-300 mb-2">
-                    ชื่อหมวดหมู่
+                    {t('settingsCategoryName')}
                   </label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="เช่น งานบริษัท A"
+                    placeholder={t('settingsCategoryNamePlaceholder')}
                     className="w-full px-4 py-2.5 bg-white dark:bg-surface-900 border border-surface-300 dark:border-surface-700 rounded-xl text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
@@ -126,7 +135,7 @@ export default function Settings() {
                   {/* Icon Picker */}
                   <div>
                     <label className="block text-sm font-semibold text-surface-700 dark:text-surface-300 mb-2">
-                      ไอคอน
+                      {t('settingsIcon')}
                     </label>
                     <div className="relative">
                       <button
@@ -161,7 +170,7 @@ export default function Settings() {
                   {/* Color Picker */}
                   <div>
                     <label className="block text-sm font-semibold text-surface-700 dark:text-surface-300 mb-2">
-                      สี
+                      {t('settingsColor')}
                     </label>
                     <div className="relative">
                       <button
@@ -210,14 +219,14 @@ export default function Settings() {
                     className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl transition-colors font-semibold"
                   >
                     <Check className="w-4 h-4" />
-                    {isCreating ? 'สร้าง' : 'บันทึก'}
+                    {isCreating ? t('settingsCreate') : t('historySave')}
                   </button>
                   <button
                     onClick={cancelEdit}
                     className="flex items-center gap-2 px-5 py-2.5 bg-surface-200 dark:bg-surface-700 hover:bg-surface-300 dark:hover:bg-surface-600 text-surface-700 dark:text-surface-300 rounded-xl transition-colors font-semibold"
                   >
                     <X className="w-4 h-4" />
-                    ยกเลิก
+                    {t('historyCancel')}
                   </button>
                 </div>
               </div>
@@ -228,7 +237,7 @@ export default function Settings() {
           <div className="space-y-3">
             {Object.values(categories).length === 0 ? (
               <p className="text-center py-12 text-surface-500 dark:text-surface-400">
-                ยังไม่มีหมวดหมู่ กดปุ่มเพิ่มหมวดหมู่เพื่อเริ่มต้น
+                {t('settingsNoCategories')}
               </p>
             ) : (
               Object.values(categories).map((category) => (
@@ -244,7 +253,7 @@ export default function Settings() {
                       {category.icon}
                     </div>
                     <div>
-                      <h3 className="font-bold text-surface-900 dark:text-white">{category.name}</h3>
+                      <h3 className="font-bold text-surface-900 dark:text-white">{getCategoryLabel(category)}</h3>
                       <p className="text-xs text-surface-500 dark:text-surface-400 font-mono">{category.color}</p>
                     </div>
                   </div>
@@ -253,14 +262,14 @@ export default function Settings() {
                     <button
                       onClick={() => startEdit(category)}
                       className="p-2 text-surface-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-all"
-                      title="แก้ไข"
+                      title={t('settingsEdit')}
                     >
                       <Pencil className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(category.id)}
                       className="p-2 text-surface-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all"
-                      title="ลบ"
+                      title={t('settingsDelete')}
                       disabled={['work', 'personal', 'research'].includes(category.id)}
                     >
                       <Trash2 className="w-4 h-4" />

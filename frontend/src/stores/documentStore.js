@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { useLanguageStore } from './languageStore.js'
 
 export const useDocumentStore = create(
   persist((set) => ({
@@ -24,12 +25,13 @@ export const useDocumentStore = create(
   setUploadError: (error) => set({ uploadError: error, isUploading: false }),
 
   setUploadResult: ({ fileName, summary, nodes, edges }) => {
+    const t = useLanguageStore.getState().t
     // Handle both old format (string) and new format (object)
     const processedSummary = typeof summary === 'string'
       ? {
           sections: [{
             id: 'section-default',
-            title: 'สรุปเนื้อหา',
+            title: t('knowledgeTabSummary'),
             content: summary,
             type: 'overview',
             icon: '📋',

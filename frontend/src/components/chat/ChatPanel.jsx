@@ -1,17 +1,60 @@
 import { useRef, useEffect } from 'react'
 import { MessageSquare, X } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
 import ModelSelector from './ModelSelector.jsx'
 import ChatMessage from './ChatMessage.jsx'
 import ChatInput from './ChatInput.jsx'
 import { useChat } from '../../hooks/useChat.js'
+import { useLanguageStore } from '../../stores/languageStore.js'
 
 export default function ChatPanel({ isOpen, onClose }) {
   const { messages, isLoading, sendMessage } = useChat()
+  const { t } = useLanguageStore()
   const chatEndRef = useRef(null)
+  const location = useLocation()
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    // We need a slight delay to ensure UI rendering is complete before scrolling
+    // and especially before relying on document.getElementById.
+    const scrollTimeout = setTimeout(() => {
+      // If we have a specific message to scroll to from global search
+      const scrollToIdx = location.state?.scrollToMessage
+      
+      if (scrollToIdx !== undefined && scrollToIdx !== null) {
+        const msgEl = document.getElementById(`msg-${scrollToIdx}`)
+        if (msgEl) {
+          msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          
+          // Add a highlight effect
+          msgEl.classList.add('ring-2', 'ring-primary-500', 'bg-primary-50/50', 'dark:bg-primary-900/20', 'rounded-xl', 'transition-all', 'duration-500')
+          
+          // Flash effect
+          let isOp = false;
+          const flashInterval = setInterval(() => {
+            if (isOp) {
+              msgEl.style.opacity = '1';
+            } else {
+              msgEl.style.opacity = '0.5';
+            }
+            isOp = !isOp;
+          }, 300);
+
+          setTimeout(() => {
+            clearInterval(flashInterval);
+            msgEl.style.opacity = '1';
+            msgEl.classList.remove('ring-2', 'ring-primary-500', 'bg-primary-50/50', 'dark:bg-primary-900/20', 'rounded-xl')
+          }, 2500)
+          
+          return
+        }
+      }
+      
+      // Default scroll to bottom
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, 100);
+
+    return () => clearTimeout(scrollTimeout);
+  }, [messages, location.state, isOpen])
 
   if (!isOpen) return null
 
@@ -24,14 +67,14 @@ export default function ChatPanel({ isOpen, onClose }) {
             <MessageSquare className="w-4 h-4 text-primary-600 dark:text-primary-400" />
           </div>
           <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200">
-            แชท AI
+            {t('chatPanelTitle')}
           </h2>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-32">
             <ModelSelector />
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="p-1.5 rounded-lg text-surface-400 hover:text-surface-600 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
           >
@@ -48,18 +91,19 @@ export default function ChatPanel({ isOpen, onClose }) {
               <MessageSquare className="w-6 h-6 text-primary-500" />
             </div>
             <p className="text-sm font-medium text-surface-600 dark:text-surface-300">
-              เริ่มการสนทนา
+              {t('chatPanelEmptyTitle')}
             </p>
             <p className="text-xs text-surface-500 dark:text-surface-400 mt-1 max-w-[200px]">
-              ถามคำถามเกี่ยวกับเอกสาร หรือให้ AI ช่วยสรุปข้อมูลให้คุณ
+              {t('chatPanelEmptySubtitle')}
             </p>
           </div>
         ) : (
           messages.map((msg, i) => (
-            <ChatMessage key={i} role={msg.role} content={msg.content} />
+            <div key={i} id={`msg-${i}`} className="transition-all duration-300 p-1 -mx-1">
+              <ChatMessage message={msg} />
+            </div>
           ))
         )}
-
         {isLoading && (
           <div className="flex gap-3 animate-pulse">
             <div className="w-8 h-8 rounded-xl bg-surface-200 dark:bg-surface-800 shrink-0" />
@@ -71,7 +115,7 @@ export default function ChatPanel({ isOpen, onClose }) {
 
       {/* Input Area */}
       <div className="p-4 border-t border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 shrink-0 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.2)]">
-        <ChatInput onSend={sendMessage} isLoading={isLoading} placeholder="พิมพ์ข้อความที่นี่..." />
+        <ChatInput onSend={sendMessage} isLoading={isLoading} placeholder={t('chatPanelInputPlaceholder')} />
       </div>
     </div>
   )

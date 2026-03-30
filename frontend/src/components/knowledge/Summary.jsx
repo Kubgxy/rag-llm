@@ -1,28 +1,35 @@
 import ReactMarkdown from 'react-markdown'
 import { useDocumentStore } from '../../stores/documentStore.js'
+import { useLanguageStore } from '../../stores/languageStore.js'
 import SummarySection from './SummarySection'
-
-/**
- * Utility: format timestamp
- */
-const formatTime = (timestamp) => {
-  const date = new Date(timestamp)
-  return date.toLocaleDateString('th-TH', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
 
 export default function Summary() {
   const { summary } = useDocumentStore()
+  const { t, lang } = useLanguageStore()
+
+  const tr = (key, vars = {}) => {
+    let text = t(key)
+    Object.entries(vars).forEach(([name, value]) => {
+      text = text.replace(`{${name}}`, String(value))
+    })
+    return text
+  }
+
+  const formatTime = (timestamp) => {
+    const date = new Date(timestamp)
+    return date.toLocaleDateString(lang === 'th' ? 'th-TH' : 'en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
 
   if (!summary) {
     return (
       <p className="text-sm text-surface-500 dark:text-surface-500 italic">
-        ยังไม่มีข้อมูลสรุป กรุณาอัปโหลดเอกสารก่อน
+        {t('summaryNoData')}
       </p>
     )
   }
@@ -47,7 +54,7 @@ export default function Summary() {
       {/* Metadata (word count + time) */}
       {metadata?.wordCount && (
         <div className="text-xs text-surface-500 dark:text-surface-400 mb-4 pb-4 border-b border-surface-200 dark:border-surface-700">
-          📊 {metadata.wordCount} คำ
+          📊 {tr('summaryWordCount', { count: metadata.wordCount })}
           {metadata.createdAt && (
             <span className="ml-2">• {formatTime(metadata.createdAt)}</span>
           )}
@@ -62,7 +69,7 @@ export default function Summary() {
           ))
         ) : (
           <p className="text-sm text-surface-500 dark:text-surface-400 italic">
-            ไม่มีข้อมูลสรุปที่ช่วย
+            {t('summaryNoHelpfulData')}
           </p>
         )}
       </div>

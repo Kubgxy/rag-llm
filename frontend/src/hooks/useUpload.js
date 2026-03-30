@@ -3,13 +3,14 @@ import { uploadDocument, checkDocumentStatus } from '../services/api.js' // เ�
 import { useDocumentStore } from '../stores/documentStore.js'
 import { useSessionStore } from '../stores/sessionStore.js'
 import { useToast } from '../components/ui/Toast.jsx'
-import { useChatStore } from '../stores/chatStore.js'
+import { useLanguageStore } from '../stores/languageStore.js'
 
 export function useUpload() {
   const [isDragging, setIsDragging] = useState(false)
   const [progressText, setProgressText] = useState('')
   const { setUploading, setUploadResult, setUploadError, isUploading } = useDocumentStore()
   const { addToast } = useToast()
+  const t = useLanguageStore.getState().t
   // ✅ แก้: ดึง getSessionId จาก sessionStore แทน chatStore
   const getSessionId = useSessionStore((state) => state.getSessionId)
 
@@ -28,11 +29,11 @@ export function useUpload() {
   const processFile = useCallback(
     async (file) => {
       if (!file) return
-      if (file.type !== 'application/pdf') { addToast('Please upload a PDF file only.', 'error'); return }
-      if (file.size > 50 * 1024 * 1024) { addToast('File size must be under 50 MB.', 'error'); return }
+      if (file.type !== 'application/pdf') { addToast(t('uploadPdfOnly'), 'error'); return }
+      if (file.size > 50 * 1024 * 1024) { addToast(t('uploadSizeLimit'), 'error'); return }
 
       setUploading(true)
-      setProgressText('กำลังฝังข้อมูลเอกสารลงสมอง AI...')
+      setProgressText(t('uploadEmbeddingProgress'))
 
       try {
         // ✅ เรียก getSessionId() เพื่อดึง sessionId
@@ -59,7 +60,7 @@ export function useUpload() {
                 summary: statusData.summary, // จะโชว์ข้อความ "⏳ AI กำลังสรุปเนื้อหา..."
                 nodes: [], edges: [],
               });
-              addToast('เอกสารพร้อมแล้ว! คุณสามารถพิมพ์ถามได้ทันที 💬', 'success');
+              addToast(t('uploadReadyToast'), 'success');
             }
 
             // 🟢 จังหวะที่ 2: งานเบื้องหลังเสร็จหมดแล้ว
@@ -72,7 +73,7 @@ export function useUpload() {
                 nodes: statusData.mindmap?.nodes || [],
                 edges: statusData.mindmap?.edges || [],
               });
-              addToast('AI สร้าง Summary และ Mindmap เสร็จสมบูรณ์! ✨', 'success');
+              addToast(t('uploadSummaryReadyToast'), 'success');
             }
             
             // 🔴 กรณี Error
@@ -81,16 +82,16 @@ export function useUpload() {
               setUploadError(statusData.message || 'Error processing document');
               if (!isChatUnlocked) setUploading(false);
               setProgressText('');
-              addToast('เกิดข้อผิดพลาดในการประมวลผล', 'error');
+              addToast(t('uploadProcessingError'), 'error');
             }
 
           } catch (pollErr) {
             console.error('Polling error:', pollErr);
             clearInterval(pollInterval);
-            setUploadError('ขาดการเชื่อมต่อกับ Server');
+            setUploadError(t('uploadServerDisconnected'));
             if (!isChatUnlocked) setUploading(false);
             setProgressText('');
-            addToast('การเชื่อมต่อขาดหาย', 'error');
+            addToast(t('uploadConnectionLost'), 'error');
           }
         }, 3000)
 
@@ -98,7 +99,7 @@ export function useUpload() {
         setUploadError(err.message)
         setUploading(false)
         setProgressText('')
-        addToast(err.message || 'Upload failed', 'error')
+        addToast(err.message || t('uploadFailed'), 'error')
       }
     },
     [setUploading, setUploadResult, setUploadError, addToast, getSessionId]

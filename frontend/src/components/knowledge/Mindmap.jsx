@@ -9,6 +9,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useDocumentStore } from '../../stores/documentStore.js'
 import { ChevronRight } from 'lucide-react'
+import { useLanguageStore } from '../../stores/languageStore.js'
 
 /**
  * Calculate positions for visible nodes with dynamic spacing (NotebookLM style)
@@ -90,6 +91,7 @@ function calculateRadialPositions(visibleNodes, expandedNodes, allNodes) {
 
 export default function Mindmap() {
   const { mindmapNodes: storeNodes, mindmapEdges: storeEdges } = useDocumentStore()
+  const { t } = useLanguageStore()
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [expandedNodes, setExpandedNodes] = useState(new Set())
   const prevVisibleIdsRef = useRef(new Set())
@@ -320,7 +322,7 @@ export default function Mindmap() {
   if (storeNodes.length === 0) {
     return (
       <p className="text-sm text-surface-500 dark:text-surface-500 italic">
-        ยังไม่มีข้อมูล Mindmap กรุณาอัปโหลดเอกสารก่อน
+        {t('mindmapNoData')}
       </p>
     )
   }

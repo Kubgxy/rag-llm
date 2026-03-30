@@ -2,9 +2,11 @@ import { useRef } from 'react'
 import { Upload, FileText, Loader2, Sparkles } from 'lucide-react'
 import { useUpload } from '../../hooks/useUpload.js'
 import { useDocumentStore } from '../../stores/documentStore.js'
+import { useLanguageStore } from '../../stores/languageStore.js'
 
 export default function UploadZone() {
   const fileInputRef = useRef(null)
+  const { t } = useLanguageStore()
   
   const {
     isDragging,
@@ -61,10 +63,10 @@ export default function UploadZone() {
             
             <div className="space-y-2">
               <p className="text-base font-medium text-primary-600 dark:text-primary-400 animate-pulse">
-                {progressText || "กำลังประมวลผลเอกสาร..."}
+                {progressText || t('uploadProcessingDefault')}
               </p>
               <p className="text-sm text-surface-500 dark:text-surface-400">
-                โปรดอย่าปิดหน้านี้ ระบบอาจใช้เวลาสักครู่
+                {t('uploadProcessingHint')}
               </p>
             </div>
 
@@ -90,10 +92,10 @@ export default function UploadZone() {
             </div>
             <div>
               <p className="text-base font-semibold text-surface-900 dark:text-white">
-                คลิกเพื่อเลือกไฟล์ PDF หรือลากไฟล์มาวาง
+                {t('uploadDropzoneTitle')}
               </p>
               <p className="text-sm text-surface-500 dark:text-surface-400 mt-1.5">
-                รองรับไฟล์ PDF ขนาดไม่เกิน 50 MB
+                {t('uploadDropzoneSubtitle')}
               </p>
             </div>
           </div>
@@ -104,7 +106,7 @@ export default function UploadZone() {
       {documents.length > 0 && (
         <div className="space-y-2.5">
           <p className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-widest ml-1">
-            เอกสารของคุณ
+            {t('uploadYourDocuments')}
           </p>
           {documents.map((doc, i) => (
             <div

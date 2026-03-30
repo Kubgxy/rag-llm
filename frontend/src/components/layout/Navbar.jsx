@@ -1,17 +1,19 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Sun, Moon, Menu, X, BookOpen, Swords } from 'lucide-react'
+import { Sun, Moon, Menu, X, BookOpen, Swords, Globe } from 'lucide-react'
 import { useThemeStore } from '../../stores/themeStore.js'
-
-const NAV_LINKS = [
-  { path: '/', label: 'พื้นที่ทำงาน', icon: BookOpen },
-  { path: '/arena', label: 'สนามประลอง', icon: Swords },
-]
+import { useLanguageStore } from '../../stores/languageStore.js'
 
 export default function Navbar() {
   const { theme, toggleTheme } = useThemeStore()
+  const { lang, toggleLanguage, t } = useLanguageStore()
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  const NAV_LINKS = [
+    { path: '/', label: t('workspace'), icon: BookOpen },
+    { path: '/arena', label: t('arena'), icon: Swords },
+  ]
 
   return (
     <nav className="sticky top-0 z-50 border-b border-surface-200 dark:border-surface-800 bg-white/80 dark:bg-surface-950/80 backdrop-blur-xl">
@@ -52,6 +54,16 @@ export default function Navbar() {
 
           {/* Right side */}
           <div className="flex items-center gap-2">
+            {/* Language toggle */}
+            <button
+              onClick={toggleLanguage}
+              className="px-2.5 py-1.5 rounded-xl hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-600 dark:text-surface-400 font-medium text-sm flex items-center gap-2"
+              aria-label="Toggle language"
+            >
+              <Globe className="w-4 h-4" />
+              {lang.toUpperCase()}
+            </button>
+
             {/* Theme toggle */}
             <button
               onClick={toggleTheme}

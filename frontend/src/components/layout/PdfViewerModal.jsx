@@ -1,6 +1,8 @@
 import { X } from 'lucide-react'
+import { useLanguageStore } from '../../stores/languageStore.js'
 
 export default function PdfViewerModal({ isOpen, onClose, fileUrl, title }) {
+  const { t } = useLanguageStore()
   if (!isOpen) return null;
 
   return (
@@ -10,7 +12,7 @@ export default function PdfViewerModal({ isOpen, onClose, fileUrl, title }) {
         {/* Header */}
         <div className="px-4 py-3 border-b border-surface-200 dark:border-surface-800 flex items-center justify-between shrink-0 bg-white dark:bg-surface-950">
           <h3 className="font-semibold text-surface-800 dark:text-surface-200 truncate pr-4">
-            {title || 'เอกสารต้นฉบับ'}
+            {title || t('pdfOriginalDocument')}
           </h3>
           <button
             onClick={onClose}
@@ -25,7 +27,7 @@ export default function PdfViewerModal({ isOpen, onClose, fileUrl, title }) {
           <iframe 
             src={fileUrl} 
             className="w-full h-full border-none"
-            title="PDF Preview"
+            title={t('pdfPreviewTitle')}
           />
         </div>
 

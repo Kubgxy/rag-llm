@@ -1,15 +1,16 @@
 import { useDocumentStore } from '../../stores/documentStore.js'
+import { useLanguageStore } from '../../stores/languageStore.js'
 import Summary from './Summary.jsx'
 import Mindmap from './Mindmap.jsx'
 import { FileText, GitBranch } from 'lucide-react'
 
-const TABS = [
-  { id: 'summary', label: 'สรุปเนื้อหา', icon: FileText },
-  { id: 'mindmap', label: 'แผนผัง Mindmap', icon: GitBranch },
-]
-
 export default function KnowledgeTabs() {
   const { activeTab, setActiveTab, summary, mindmapNodes } = useDocumentStore()
+  const { t } = useLanguageStore()
+  const TABS = [
+    { id: 'summary', label: t('knowledgeTabSummary'), icon: FileText },
+    { id: 'mindmap', label: t('knowledgeTabMindmap'), icon: GitBranch },
+  ]
 
   const hasContent = summary || mindmapNodes.length > 0
 
@@ -20,10 +21,10 @@ export default function KnowledgeTabs() {
           <FileText className="w-8 h-8 text-surface-400" />
         </div>
         <p className="text-sm font-medium text-surface-500 dark:text-surface-500">
-          อัปโหลดเอกสารเพื่อสร้างข้อมูลเชิงลึก
+          {t('knowledgeEmptyTitle')}
         </p>
         <p className="text-xs text-surface-400 mt-1">
-          สรุปเนื้อหาและ Mindmap จะแสดงที่นี่โดยอัตโนมัติ
+          {t('knowledgeEmptySubtitle')}
         </p>
       </div>
     )

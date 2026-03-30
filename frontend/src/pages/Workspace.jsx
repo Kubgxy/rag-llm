@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ChevronLeft, MessageSquare, FileText, PanelRight, Sun, Moon, Pencil, Check, X } from 'lucide-react'
+import { ChevronLeft, MessageSquare, FileText, PanelRight, Sun, Moon, Pencil, Check, X, Globe } from 'lucide-react'
 import { useChat } from '../hooks/useChat.js'
 import { useChatStore } from '../stores/chatStore.js'
 import { useDocumentStore } from '../stores/documentStore.js'
 import { useSessionStore } from '../stores/sessionStore.js'
 import { useChatHistoryStore } from '../stores/chatHistoryStore.js'
+import { useLanguageStore } from '../stores/languageStore.js'
 import ModelSelector from '../components/chat/ModelSelector.jsx'
 import CompareToggle from '../components/chat/CompareToggle.jsx'
 import NormalLayout from '../components/layout/NormalLayout.jsx'
@@ -17,6 +18,7 @@ export default function Workspace() {
   const navigate = useNavigate()
 
   // States & Hooks
+  const { lang, t, toggleLanguage } = useLanguageStore()
   const { messages, isLoading, sendMessage } = useChat()
   const { toggleThinkingExpanded } = useChatStore()
   const { chatTitle, setChatTitle } = useSessionStore()
@@ -71,7 +73,7 @@ export default function Workspace() {
   }
 
   const startEditingTitle = () => {
-    setEditTitle(chatTitle || 'Chat Session')
+    setEditTitle(chatTitle || t('workspaceSessionFallback'))
     setIsEditingTitle(true)
   }
 
@@ -119,14 +121,14 @@ export default function Workspace() {
               <button
                 onClick={saveTitle}
                 className="p-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors shrink-0"
-                title="บันทึก"
+                title={t('workspaceSave')}
               >
                 <Check className="w-4 h-4" />
               </button>
               <button
                 onClick={cancelEditTitle}
                 className="p-1.5 bg-surface-200 dark:bg-surface-700 hover:bg-surface-300 dark:hover:bg-surface-600 text-surface-700 dark:text-surface-300 rounded-lg transition-colors shrink-0"
-                title="ยกเลิก"
+                title={t('workspaceCancel')}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -134,12 +136,12 @@ export default function Workspace() {
           ) : (
             <div className="flex items-center gap-2 flex-1 min-w-0 group">
               <span className="font-semibold text-surface-900 dark:text-white truncate">
-                {chatTitle || 'Chat Session'}
+                {chatTitle || t('workspaceSessionFallback')}
               </span>
               <button
                 onClick={startEditingTitle}
                 className="p-1.5 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg text-surface-400 hover:text-primary-600 dark:hover:text-primary-400 transition-all opacity-0 group-hover:opacity-100 shrink-0"
-                title="แก้ไขชื่อ"
+                title={t('workspaceEditTitle')}
               >
                 <Pencil className="w-4 h-4" />
               </button>
@@ -151,10 +153,20 @@ export default function Workspace() {
         <div className="flex items-center gap-3">
           <ModelSelector />
           <CompareToggle isCompareMode={isCompareMode} onToggle={handleToggleCompare} />
+          
+          <button
+            onClick={toggleLanguage}
+            className="px-2.5 py-1.5 rounded-lg hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors text-surface-600 dark:text-surface-300 font-medium text-sm flex items-center gap-2"
+            title={t('workspaceChangeLanguage')}
+          >
+            <Globe className="w-4 h-4" />
+            {lang.toUpperCase()}
+          </button>
+
           <button
             onClick={toggleTheme}
             className="p-2 rounded-lg hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors text-surface-600 dark:text-surface-300"
-            title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={isDarkMode ? t('workspaceSwitchToLight') : t('workspaceSwitchToDark')}
           >
             {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>

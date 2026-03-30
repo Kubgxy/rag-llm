@@ -1,5 +1,8 @@
+import { useEffect, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import { MessageSquare, FileText, PanelRight } from 'lucide-react'
 import { useDocumentStore } from '../../stores/documentStore.js'
+import { useLanguageStore } from '../../stores/languageStore.js'
 import UploadZone from '../upload/UploadZone.jsx'
 import ChatMessage from '../chat/ChatMessage.jsx'
 import ChatInput from '../chat/ChatInput.jsx'
@@ -24,6 +27,44 @@ export function NormalLayout({
   chatEndRef,
 }) {
   const setPreviewPdf = useDocumentStore(state => state.setPreviewPdf)
+  const location = useLocation()
+  const { t } = useLanguageStore()
+
+  useEffect(() => {
+    const scrollTimeout = setTimeout(() => {
+      const scrollToIdx = location.state?.scrollToMessage
+
+      if (scrollToIdx !== undefined && scrollToIdx !== null) {
+        const msgEl = document.getElementById(`msg-${scrollToIdx}`)
+        if (msgEl) {
+          msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+          msgEl.classList.add('ring-2', 'ring-primary-500', 'bg-primary-50/50', 'dark:bg-primary-900/20', 'rounded-xl', 'transition-all', 'duration-500')
+
+          let isOp = false;
+          const flashInterval = setInterval(() => {
+            if (isOp) {
+              msgEl.style.opacity = '1';
+            } else {
+              msgEl.style.opacity = '0.5';
+            }
+            isOp = !isOp;
+          }, 300);
+
+          setTimeout(() => {
+            clearInterval(flashInterval);
+            msgEl.style.opacity = '1';
+            msgEl.classList.remove('ring-2', 'ring-primary-500', 'bg-primary-50/50', 'dark:bg-primary-900/20', 'rounded-xl')
+          }, 2500)
+          return;
+        }
+      }
+
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, 100);
+
+    return () => clearTimeout(scrollTimeout);
+  }, [messages, location.state])
   return (
     <>
       {/* ===================== LEFT COLUMN (Documents) ===================== */}
@@ -37,14 +78,14 @@ export function NormalLayout({
       >
         <div className="p-4 border-b border-surface-200 dark:border-surface-800 shrink-0">
           <h2 className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-3">
-            จัดการเอกสาร
+            {t('normalDocsTitle')}
           </h2>
           <UploadZone />
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {documents.length === 0 ? (
-            <p className="text-sm text-surface-500 italic text-center mt-4">ยังไม่มีเอกสารในแชทนี้</p>
+            <p className="text-sm text-surface-500 italic text-center mt-4">{t('normalNoDocsInChat')}</p>
           ) : (
             documents.map((doc, i) => (
               <div
@@ -73,7 +114,7 @@ export function NormalLayout({
         <div className="px-5 py-3 border-b border-surface-200 dark:border-surface-800 flex items-center justify-between shrink-0 bg-white/50 dark:bg-surface-950/50 backdrop-blur-md">
           <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200 flex items-center gap-2">
             <MessageSquare className="w-4 h-4 text-primary-500" />
-            สนทนา
+            {t('normalChatTitle')}
           </h2>
         </div>
 
@@ -85,19 +126,20 @@ export function NormalLayout({
                 <MessageSquare className="w-8 h-8 text-primary-500" />
               </div>
               <p className="text-base font-semibold text-surface-700 dark:text-surface-300">
-                เริ่มพูดคุยกับ AI
+                {t('normalEmptyChatTitle')}
               </p>
               <p className="text-sm text-surface-500 dark:text-surface-400 mt-2 max-w-sm">
-                อัปโหลดเอกสารด้านซ้าย จากนั้นพิมพ์คำถามของคุณที่นี่
+                {t('normalEmptyChatSubtitle')}
               </p>
             </div>
           ) : (
             messages.map((msg, i) => (
-              <ChatMessage
-                key={msg.id || i}
-                message={msg}
-                onThinkingToggle={(messageId) => toggleThinkingExpanded(messageId)}
-              />
+                <div key={msg.id || i} id={`msg-${i}`} className="transition-all duration-300">
+                  <ChatMessage
+                    message={msg}
+                    onThinkingToggle={(messageId) => toggleThinkingExpanded(messageId)}
+                  />
+                </div>
             ))
           )}
 
@@ -113,7 +155,7 @@ export function NormalLayout({
         {/* Chat Input */}
         <div className="p-4 bg-surface-50 dark:bg-surface-900 border-t border-surface-200 dark:border-surface-800 shrink-0">
           <div className="max-w-3xl mx-auto">
-            <ChatInput onSend={sendMessage} isLoading={isLoading} placeholder="พิมพ์คำถามของคุณที่นี่..." />
+            <ChatInput onSend={sendMessage} isLoading={isLoading} placeholder={t('normalInputPlaceholder')} />
           </div>
         </div>
       </div>
@@ -130,12 +172,12 @@ export function NormalLayout({
       >
         <div className="p-3 border-b border-surface-200 dark:border-surface-800 flex items-center justify-between shrink-0">
           <h2 className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider pl-2">
-            Knowledge Base
+            {t('normalKnowledgeBaseTitle')}
           </h2>
           <button
             onClick={() => setIsKnowledgeExpanded(!isKnowledgeExpanded)}
             className="p-1.5 rounded-lg text-surface-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors hidden md:block"
-            title={isKnowledgeExpanded ? 'ย่อหน้าต่าง' : 'ขยายหน้าต่าง'}
+            title={isKnowledgeExpanded ? t('normalCollapsePanel') : t('normalExpandPanel')}
           >
             <PanelRight className={`w-4 h-4 transition-transform ${isKnowledgeExpanded ? 'rotate-180' : ''}`} />
           </button>
@@ -145,14 +187,14 @@ export function NormalLayout({
           {documents.length === 0 ? (
             <div className="text-center mt-10">
               <PanelRight className="w-10 h-10 text-surface-300 dark:text-surface-700 mx-auto mb-3" />
-              <p className="text-sm text-surface-500">อัปโหลดเอกสารเพื่อดูสรุปและ Mindmap</p>
+              <p className="text-sm text-surface-500">{t('normalUploadToViewInsights')}</p>
             </div>
           ) : (
             <div className="flex flex-col h-full gap-4">
               {/* Quick Document List for Context (Always visible) */}
               {!isKnowledgeExpanded && (
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-surface-500 px-1">คลิกที่เอกสารเพื่อดูสรุปแบบละเอียด</p>
+                  <p className="text-xs font-medium text-surface-500 px-1">{t('normalClickDocForDetailSummary')}</p>
                   {documents.map((doc, i) => (
                     <div
                       key={i}
@@ -164,7 +206,7 @@ export function NormalLayout({
                         <span className="block text-sm font-medium text-surface-700 dark:text-surface-300 truncate">
                           {doc.name}
                         </span>
-                        <span className="block text-[10px] text-surface-400 mt-0.5">กดเพื่อดูข้อมูลเชิงลึก</span>
+                        <span className="block text-[10px] text-surface-400 mt-0.5">{t('normalTapForInsights')}</span>
                       </div>
                     </div>
                   ))}
