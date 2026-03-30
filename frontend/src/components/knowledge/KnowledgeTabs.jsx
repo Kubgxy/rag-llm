@@ -1,15 +1,85 @@
+import { useState } from 'react'
 import { useDocumentStore } from '../../stores/documentStore.js'
 import { useLanguageStore } from '../../stores/languageStore.js'
+import { useSessionStore } from '../../stores/sessionStore.js'
+import { useToast } from '../ui/Toast.jsx'
+import { generateKnowledgeAction } from '../../services/api.js'
 import Summary from './Summary.jsx'
 import Mindmap from './Mindmap.jsx'
-import { FileText, GitBranch } from 'lucide-react'
+import ActionResults from './ActionResults.jsx'
+import { FileText, GitBranch, Sparkles, BarChart3, Presentation, Image, Waypoints } from 'lucide-react'
 
 export default function KnowledgeTabs() {
-  const { activeTab, setActiveTab, summary, mindmapNodes } = useDocumentStore()
-  const { t } = useLanguageStore()
+  const { activeTab, setActiveTab, summary, mindmapNodes, addActionResult } = useDocumentStore()
+  const { t, lang } = useLanguageStore()
+  const { addToast } = useToast()
+  const [actionLoading, setActionLoading] = useState(null)
+
+  const ACTIONS = [
+    {
+      id: 'diagram',
+      label: t('knowledgeActionDiagram'),
+      promptLabel: t('knowledgeActionPromptDiagram'),
+      icon: Waypoints,
+    },
+    {
+      id: 'chart',
+      label: t('knowledgeActionChart'),
+      promptLabel: t('knowledgeActionPromptChart'),
+      icon: BarChart3,
+    },
+    {
+      id: 'slides',
+      label: t('knowledgeActionSlides'),
+      promptLabel: t('knowledgeActionPromptSlides'),
+      icon: Presentation,
+    },
+    {
+      id: 'infographic',
+      label: t('knowledgeActionInfographic'),
+      promptLabel: t('knowledgeActionPromptInfographic'),
+      icon: Image,
+    },
+  ]
+
+  const handleActionClick = async (action) => {
+    if (actionLoading) return
+
+    const sessionId = useSessionStore.getState().getSessionId()
+    if (!sessionId) {
+      addToast(t('knowledgeActionSessionMissing'), 'error')
+      return
+    }
+
+    setActionLoading(action.id)
+
+    try {
+      const data = await generateKnowledgeAction(action.id, sessionId, {
+        language: lang,
+      })
+
+      addActionResult({
+        actionType: action.id,
+        title: action.label,
+        answer: data.answer,
+        modelName: data.model_name,
+        citations: data.citations || [],
+        createdAt: Date.now(),
+      })
+
+      setActiveTab('actions')
+      addToast(t('knowledgeActionSuccess'), 'success')
+    } catch (err) {
+      addToast(err.message || t('knowledgeActionFailed'), 'error')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   const TABS = [
     { id: 'summary', label: t('knowledgeTabSummary'), icon: FileText },
     { id: 'mindmap', label: t('knowledgeTabMindmap'), icon: GitBranch },
+    { id: 'actions', label: t('knowledgeTabActions'), icon: Sparkles },
   ]
 
   const hasContent = summary || mindmapNodes.length > 0
@@ -33,7 +103,7 @@ export default function KnowledgeTabs() {
   return (
     <div className="flex flex-col h-full">
       {/* Tab switcher */}
-      <div className="flex gap-1 p-1 bg-surface-100 dark:bg-surface-800 rounded-xl">
+      <div className="flex gap-1 p-1 bg-surface-100 dark:bg-surface-800 rounded-xl ">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -53,9 +123,46 @@ export default function KnowledgeTabs() {
         ))}
       </div>
 
+      {/* One-click actions (show only in Actions tab) */}
+      {activeTab === 'actions' && (
+        <div className="mt-3">
+          <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 mb-2 px-1">
+            {t('knowledgeActionTitle')}
+          </p>
+          <div className="grid grid-cols-2 gap-2 px-4 mb-2">
+            {ACTIONS.map((action) => {
+              const isBusy = actionLoading === action.id
+              const Icon = action.icon
+              return (
+                <button
+                  key={action.id}
+                  onClick={() => handleActionClick(action)}
+                  disabled={Boolean(actionLoading)}
+                  className={
+                    `px-3 py-2 rounded-lg text-xs font-medium border transition-all ` +
+                    `${isBusy
+                      ? 'bg-primary-500 text-white border-primary-500 shadow-sm'
+                      : 'bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-300 border-surface-200 dark:border-surface-700 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 hover:shadow-sm'
+                    } ` +
+                    `${actionLoading ? 'opacity-70 cursor-not-allowed' : ''}`
+                  }
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Icon className="w-3.5 h-3.5" />
+                    {isBusy ? t('knowledgeActionGenerating') : action.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Tab content */}
       <div className="flex-1 mt-4 min-h-0">
-        {activeTab === 'summary' ? <Summary /> : <Mindmap />}
+        {activeTab === 'summary' && <Summary />}
+        {activeTab === 'mindmap' && <Mindmap />}
+        {activeTab === 'actions' && <ActionResults />}
       </div>
     </div>
   )

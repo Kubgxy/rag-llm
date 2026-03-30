@@ -10,6 +10,9 @@ export const useDocumentStore = create(
   // Enhanced mindmap with hierarchy: nodes with parentId, level, type
   mindmapNodes: [],
   mindmapEdges: [],
+  // Action generation results shown in knowledge panel
+  actionResults: [],
+  selectedActionResultId: null,
   isUploading: false,
   uploadError: null,
   activeTab: 'summary',
@@ -50,6 +53,8 @@ export const useDocumentStore = create(
       summary: processedSummary,
       mindmapNodes: nodes || [],
       mindmapEdges: edges || [],
+      actionResults: [],
+      selectedActionResultId: null,
       isUploading: false,
       uploadError: null,
     }))
@@ -66,12 +71,35 @@ export const useDocumentStore = create(
     mindmapEdges: edges
   }),
 
+  addActionResult: (result) =>
+    set((state) => {
+      const item = {
+        id: result.id || `action-${Date.now()}-${Math.random()}`,
+        actionType: result.actionType,
+        title: result.title,
+        answer: result.answer,
+        modelName: result.modelName || null,
+        citations: result.citations || [],
+        createdAt: result.createdAt || Date.now(),
+      }
+      return {
+        actionResults: [item, ...state.actionResults],
+        selectedActionResultId: item.id,
+      }
+    }),
+
+  setSelectedActionResult: (id) => set({ selectedActionResultId: id }),
+
+  clearActionResults: () => set({ actionResults: [], selectedActionResultId: null }),
+
   clearDocuments: () =>
     set({
       documents: [],
       summary: null,
       mindmapNodes: [],
       mindmapEdges: [],
+      actionResults: [],
+      selectedActionResultId: null,
       uploadError: null,
     }),
   }),
@@ -81,7 +109,9 @@ export const useDocumentStore = create(
       documents: state.documents,
       summary: state.summary,
       mindmapNodes: state.mindmapNodes,
-      mindmapEdges: state.mindmapEdges
+      mindmapEdges: state.mindmapEdges,
+      actionResults: state.actionResults,
+      selectedActionResultId: state.selectedActionResultId,
     }), // เก็บได้อย่างไร documents,summary,mindmap
   }
 ))

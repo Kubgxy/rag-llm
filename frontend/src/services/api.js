@@ -135,6 +135,29 @@ export const suggestTitle = async (query, modelName = 'typhoon-2.5') => {
 }
 
 /**
+ * Generate specialized knowledge action result using dedicated action model
+ * POST /actions/generate
+ * @param {'diagram'|'chart'|'slides'|'infographic'} actionType
+ * @param {string} sessionId
+ * @param {{ userGoal?: string, language?: 'th'|'en', modelName?: string }} options
+ */
+export const generateKnowledgeAction = async (actionType, sessionId, options = {}) => {
+  const payload = {
+    action_type: actionType,
+    session_id: sessionId,
+    user_goal: options.userGoal || null,
+    language: options.language || 'th',
+  }
+
+  if (options.modelName) {
+    payload.model_name = options.modelName
+  }
+
+  const { data } = await api.post('/actions/generate', payload)
+  return data
+}
+
+/**
  * Get global runtime device
  * GET /runtime/status
  */
