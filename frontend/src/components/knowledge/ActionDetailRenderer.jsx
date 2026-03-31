@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import mermaid from 'mermaid'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ResponsiveContainer,
   BarChart,
@@ -34,19 +33,20 @@ import {
   Palette,
   Shapes,
 } from 'lucide-react'
+import Mindmap from './Mindmap.jsx'
 
 const CHART_COLORS = ['#3b82f6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 
 function stripCodeFence(text) {
   if (!text) return ''
   const raw = String(text).trim()
-  const fencedBlock = raw.match(/```\s*(?:mermaid|json)?\s*\n?([\s\S]*?)```/i)
+  const fencedBlock = raw.match(/```\s*(?:json)?\s*\n?([\s\S]*?)```/i)
   if (fencedBlock?.[1]) {
     return fencedBlock[1].trim()
   }
 
   return raw
-    .replace(/^```\s*(?:mermaid|json)?\s*/i, '')
+    .replace(/^```\s*(?:json)?\s*/i, '')
     .replace(/```\s*$/i, '')
     .trim()
 }
@@ -84,102 +84,6 @@ function parseJsonSafe(text) {
   }
 }
 
-function normalizeMermaid(text) {
-  const cleaned = stripCodeFence(text)
-  const lines = cleaned
-    .split('\n')
-    .map((line) => line.trimEnd())
-    .filter((line) => line.trim() !== '...')
-
-  const startIdx = lines.findIndex((line) =>
-    /^(flowchart|graph|mindmap|sequenceDiagram|classDiagram|erDiagram|journey|gantt|stateDiagram-v2|stateDiagram)\b/i.test(
-      line.trim(),
-    ),
-  )
-
-  if (startIdx >= 0) {
-    return lines
-      .slice(startIdx)
-      .filter((line) => !/^(หมายเหตุ|note)\s*[:：]/i.test(line.trim()))
-      .join('\n')
-      .trim()
-  }
-
-  return cleaned
-}
-
-function parseNodeToken(token, nodeMap) {
-  const normalized = String(token || '').trim().replace(/^[*-]\s*/, '')
-  if (!normalized) return null
-
-  // patterns: A[text], B(text), C{decision}
-  const withLabel = normalized.match(/^([A-Za-z][\w-]*)\s*[\[\(\{]([\s\S]*?)[\]\)\}]$/)
-  if (withLabel) {
-    const id = withLabel[1].replace(/-/g, '_')
-    const label = withLabel[2].replace(/"/g, "'").replace(/\s+/g, ' ').trim()
-    nodeMap.set(id, label || id)
-    return id
-  }
-
-  const pureId = normalized.match(/^([A-Za-z][\w-]*)$/)
-  if (pureId) {
-    const id = pureId[1].replace(/-/g, '_')
-    if (!nodeMap.has(id)) {
-      nodeMap.set(id, id)
-    }
-    return id
-  }
-
-  const label = normalized
-    .replace(/^[\[\(\{]+/, '')
-    .replace(/[\]\)\}]+$/, '')
-    .replace(/"/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  const fallbackId = `N${nodeMap.size + 1}`
-  nodeMap.set(fallbackId, label || fallbackId)
-  return fallbackId
-}
-
-function buildSafeFlowchartFromText(text) {
-  const cleaned = normalizeMermaid(text)
-  const rawLines = cleaned
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-
-  const edgeLines = rawLines
-    .filter((line) => /-->|->|==>/.test(line))
-    .map((line) => line.replace(/^[*-]\s*/, '').replace(/;+$/, '').trim())
-
-  if (!edgeLines.length) return ''
-
-  const nodeMap = new Map()
-  const edges = []
-
-  edgeLines.forEach((line) => {
-    const parts = line.split(/-->|->|==>/)
-    if (parts.length < 2) return
-
-    const sourceId = parseNodeToken(parts[0], nodeMap)
-    const targetId = parseNodeToken(parts[1], nodeMap)
-
-    if (sourceId && targetId) {
-      edges.push([sourceId, targetId])
-    }
-  })
-
-  if (!edges.length) return ''
-
-  const nodeDefs = Array.from(nodeMap.entries()).map(
-    ([id, label]) => `  ${id}["${label}"]`,
-  )
-  const edgeDefs = edges.map(([s, t]) => `  ${s} --> ${t}`)
-
-  return ['flowchart TD', ...nodeDefs, ...edgeDefs].join('\n')
-}
-
 function RawFallback({ answer }) {
   return (
     <pre className="text-xs leading-relaxed whitespace-pre-wrap break-words text-surface-700 dark:text-surface-300 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl p-4">
@@ -188,80 +92,23 @@ function RawFallback({ answer }) {
   )
 }
 
-function MermaidPreview({ answer }) {
-  const code = useMemo(() => normalizeMermaid(answer), [answer])
-  const repairedCode = useMemo(() => buildSafeFlowchartFromText(answer), [answer])
-  const [svg, setSvg] = useState('')
-  const [error, setError] = useState('')
-  const renderIdRef = useRef(`mermaid-${Math.random().toString(36).slice(2)}`)
+function MindmapPreview({ answer }) {
+  const parsed = useMemo(() => parseJsonSafe(answer), [answer])
+  const nodes = Array.isArray(parsed?.nodes) ? parsed.nodes : []
+  const edges = Array.isArray(parsed?.edges) ? parsed.edges : []
 
-  useEffect(() => {
-    let cancelled = false
-
-    const renderDiagram = async () => {
-      try {
-        setError('')
-        setSvg('')
-        mermaid.initialize({
-          startOnLoad: false,
-          securityLevel: 'loose',
-          theme: 'neutral',
-        })
-
-        const attempts = [code, repairedCode].filter(Boolean)
-        let rendered = false
-
-        for (let i = 0; i < attempts.length; i += 1) {
-          try {
-            const attemptCode = attempts[i]
-            const attemptId = `${renderIdRef.current}-${i}`
-            const { svg: nextSvg } = await mermaid.render(attemptId, attemptCode)
-            if (!cancelled) {
-              setSvg(nextSvg)
-            }
-            rendered = true
-            break
-          } catch {
-            // Try next repair strategy
-          }
-        }
-
-        if (!rendered) {
-          throw new Error('Unable to render Mermaid diagram')
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setSvg('')
-          setError(err?.message || 'Unable to render Mermaid diagram')
-        }
-      }
-    }
-
-    if (code) {
-      renderDiagram()
-    }
-
-    return () => {
-      cancelled = true
-    }
-  }, [code])
-
-  if (error) {
+  if (!parsed || nodes.length === 0) {
     return (
       <div className="space-y-3">
-        <p className="text-xs text-amber-500">Mermaid render failed, showing raw output instead.</p>
+        <p className="text-xs text-amber-500">Mindmap JSON is invalid, showing raw output instead.</p>
         <RawFallback answer={answer} />
       </div>
     )
   }
 
-  if (!svg) {
-    return <p className="text-xs text-surface-500">Rendering diagram...</p>
-  }
-
   return (
-    <div className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl p-4 overflow-auto">
-      <div className="min-w-[520px]" dangerouslySetInnerHTML={{ __html: svg }} />
+    <div className="h-[68vh] min-h-[480px] w-full bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl p-2">
+      <Mindmap nodes={nodes} edges={edges} />
     </div>
   )
 }
@@ -820,8 +667,8 @@ function InfographicPreview({ answer }) {
 }
 
 export default function ActionDetailRenderer({ actionType, answer }) {
-  if (actionType === 'diagram') {
-    return <MermaidPreview answer={answer} />
+  if (actionType === 'mindmap') {
+    return <MindmapPreview answer={answer} />
   }
 
   if (actionType === 'chart') {

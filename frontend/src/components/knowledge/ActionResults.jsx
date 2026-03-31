@@ -1,13 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useDocumentStore } from '../../stores/documentStore.js'
 import { useLanguageStore } from '../../stores/languageStore.js'
-import { Sparkles, X, BarChart3, Presentation, Image, Waypoints, ChevronRight } from 'lucide-react'
+import { Sparkles, X, BarChart3, Presentation, Image, GitBranch, ChevronRight, Maximize2, Minimize2 } from 'lucide-react'
 import ActionDetailRenderer from './ActionDetailRenderer.jsx'
 
 export default function ActionResults() {
   const { actionResults, selectedActionResultId, setSelectedActionResult } = useDocumentStore()
   const { t, lang } = useLanguageStore()
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   const selected = actionResults.find((item) => item.id === selectedActionResultId) || actionResults[0]
 
@@ -24,12 +26,45 @@ export default function ActionResults() {
   }
 
   const getActionIcon = (actionType) => {
-    if (actionType === 'diagram') return Waypoints
+    if (actionType === 'mindmap') return GitBranch
     if (actionType === 'chart') return BarChart3
     if (actionType === 'slides') return Presentation
     if (actionType === 'infographic') return Image
     return Sparkles
   }
+
+  const getActionLabel = (actionType) => {
+    if (actionType === 'mindmap') return t('knowledgeActionMindmap')
+    if (actionType === 'chart') return t('knowledgeActionChart')
+    if (actionType === 'slides') return t('knowledgeActionSlides')
+    if (actionType === 'infographic') return t('knowledgeActionInfographic')
+    return actionType
+  }
+
+  useEffect(() => {
+    if (!isModalOpen) return undefined
+
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = prevOverflow
+    }
+  }, [isModalOpen])
+
+  useEffect(() => {
+    if (!isModalOpen) return undefined
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setIsModalOpen(false)
+        setIsFullscreen(false)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isModalOpen])
 
   const SelectedIcon = selected ? getActionIcon(selected.actionType) : Sparkles
 
@@ -49,14 +84,103 @@ export default function ActionResults() {
     )
   }
 
-  const handleOpenDetail = (itemId) => {
+  const handleOpenDetail = (itemId, fullscreen = false) => {
     setSelectedActionResult(itemId)
+    setIsFullscreen(fullscreen)
     setIsModalOpen(true)
+  }
+
+  const handleOpenFullscreen = (itemId) => {
+    handleOpenDetail(itemId, true)
   }
 
   const handleCloseDetail = () => {
     setIsModalOpen(false)
+    setIsFullscreen(false)
   }
+
+  const modalContent = isModalOpen && selected ? (
+    <div
+      className={
+        `fixed inset-0 z-[2000] flex items-center justify-center bg-surface-950/70 backdrop-blur-md transition-all duration-300 ` +
+        `${isFullscreen ? 'p-0' : 'p-4'}`
+      }
+      onClick={handleCloseDetail}
+    >
+      <div
+        className={
+          `relative w-full flex flex-col overflow-hidden border transition-all duration-300 ` +
+          `${isFullscreen
+            ? 'h-full max-w-none rounded-none border-surface-700/50 bg-surface-50 dark:bg-surface-900'
+            : 'max-w-6xl h-[88vh] rounded-2xl border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 shadow-2xl'
+          }`
+        }
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_85%_10%,rgba(14,165,233,0.12),transparent_36%),radial-gradient(circle_at_10%_85%,rgba(99,102,241,0.10),transparent_32%)]" />
+
+        <div className="relative px-4 py-3 border-b border-surface-200 dark:border-surface-800 flex items-center justify-between shrink-0 bg-white/90 dark:bg-surface-950/95 backdrop-blur-sm">
+          <div className="min-w-0 pr-4">
+            <div className="inline-flex items-center gap-2 min-w-0">
+              <SelectedIcon className="w-4 h-4 text-primary-600 dark:text-primary-400 shrink-0" />
+              <h3 className="font-semibold text-surface-800 dark:text-surface-200 truncate">
+                {selected.title}
+              </h3>
+              <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200/70 dark:border-primary-700/50">
+                {getActionLabel(selected.actionType)}
+              </span>
+            </div>
+            <p className="text-[11px] text-surface-500 mt-0.5 truncate">
+              {selected.modelName || '-'} • {formatTime(selected.createdAt)}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsFullscreen((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-200 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+              aria-label={isFullscreen ? t('knowledgeActionExitFullscreen') : t('knowledgeActionEnterFullscreen')}
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              <span className="hidden sm:inline">
+                {isFullscreen ? t('knowledgeActionExitFullscreen') : t('knowledgeActionEnterFullscreen')}
+              </span>
+            </button>
+
+            <button
+              onClick={handleCloseDetail}
+              className="p-1.5 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg text-surface-500 transition-colors"
+              aria-label={t('knowledgeActionClose')}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <div
+          className={
+            `relative flex-1 overflow-y-auto bg-surface-100/70 dark:bg-surface-950 space-y-3 ` +
+            `${isFullscreen ? 'p-6 md:p-8' : 'p-4'}`
+          }
+        >
+          <ActionDetailRenderer actionType={selected.actionType} answer={selected.answer} />
+
+          {Array.isArray(selected.citations) && selected.citations.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selected.citations.map((cite, idx) => (
+                <span
+                  key={`cite-${idx}`}
+                  className="text-[11px] px-2 py-1 rounded-md bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-300"
+                >
+                  {cite.file_name} ({t('citationPageLabel')} {cite.page_label})
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null
 
   return (
     <div className="h-full min-h-0 flex flex-col gap-3">
@@ -65,9 +189,8 @@ export default function ActionResults() {
           const isActive = selected && selected.id === item.id
           const Icon = getActionIcon(item.actionType)
           return (
-            <button
+            <div
               key={item.id}
-              onClick={() => handleOpenDetail(item.id)}
               className={
                 `w-full text-left px-3 py-2 rounded-lg border transition-colors ` +
                 `${isActive
@@ -76,69 +199,33 @@ export default function ActionResults() {
                 }`
               }
             >
-              <div className="flex items-center justify-between gap-2">
-                <div className="inline-flex items-center gap-2 min-w-0">
-                  <span className="w-6 h-6 rounded-md bg-primary-100 dark:bg-primary-900/40 inline-flex items-center justify-center shrink-0">
-                    <Icon className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
-                  </span>
-                  <span className="text-xs font-semibold text-surface-700 dark:text-surface-200 truncate">
-                    {item.title}
-                  </span>
+              <button
+                onClick={() => handleOpenDetail(item.id)}
+                className="w-full text-left"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="inline-flex items-center gap-2 min-w-0">
+                    <span className="w-6 h-6 rounded-md bg-primary-100 dark:bg-primary-900/40 inline-flex items-center justify-center shrink-0">
+                      <Icon className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
+                    </span>
+                    <span className="text-xs font-semibold text-surface-700 dark:text-surface-200 truncate">
+                      {item.title}
+                    </span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-surface-400 shrink-0" />
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 text-surface-400 shrink-0" />
-              </div>
-              <div className="text-[11px] text-surface-500 mt-0.5">
-                {formatTime(item.createdAt)}
-              </div>
-              <div className="text-[11px] text-primary-600 dark:text-primary-400 mt-1">
-                {t('knowledgeActionViewDetail')}
-              </div>
-            </button>
+                <div className="text-[11px] text-surface-500 mt-0.5">
+                  {formatTime(item.createdAt)}
+                </div>
+              </button>
+
+                
+            </div>
           )
         })}
       </div>
 
-          {isModalOpen && selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-5xl h-[85vh] bg-surface-50 dark:bg-surface-900 rounded-2xl shadow-xl flex flex-col overflow-hidden border border-surface-200 dark:border-surface-700">
-            <div className="px-4 py-3 border-b border-surface-200 dark:border-surface-800 flex items-center justify-between shrink-0 bg-white dark:bg-surface-950">
-              <div className="min-w-0 pr-4">
-                    <h3 className="font-semibold text-surface-800 dark:text-surface-200 truncate inline-flex items-center gap-2">
-                      <SelectedIcon className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-                      {selected.title}
-                    </h3>
-                <p className="text-[11px] text-surface-500 mt-0.5 truncate">
-                  {selected.modelName || '-'} • {formatTime(selected.createdAt)}
-                </p>
-              </div>
-              <button
-                onClick={handleCloseDetail}
-                className="p-1.5 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg text-surface-500 transition-colors"
-                aria-label={t('knowledgeActionClose')}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 bg-surface-100/60 dark:bg-surface-950 space-y-3">
-              <ActionDetailRenderer actionType={selected.actionType} answer={selected.answer} />
-
-              {Array.isArray(selected.citations) && selected.citations.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {selected.citations.map((cite, idx) => (
-                    <span
-                      key={`cite-${idx}`}
-                      className="text-[11px] px-2 py-1 rounded-md bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-300"
-                    >
-                      {cite.file_name} ({t('citationPageLabel')} {cite.page_label})
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {modalContent && typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null}
     </div>
   )
 }

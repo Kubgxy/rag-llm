@@ -12,7 +12,7 @@ class DocumentStatus(str, Enum):
 
 
 class ActionType(str, Enum):
-    DIAGRAM = "diagram"
+    MINDMAP = "mindmap"
     CHART = "chart"
     SLIDES = "slides"
     INFOGRAPHIC = "infographic"

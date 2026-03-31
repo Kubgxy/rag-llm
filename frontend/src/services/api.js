@@ -137,7 +137,7 @@ export const suggestTitle = async (query, modelName = 'typhoon-2.5') => {
 /**
  * Generate specialized knowledge action result using dedicated action model
  * POST /actions/generate
- * @param {'diagram'|'chart'|'slides'|'infographic'} actionType
+ * @param {'mindmap'|'chart'|'slides'|'infographic'} actionType
  * @param {string} sessionId
  * @param {{ userGoal?: string, language?: 'th'|'en', modelName?: string }} options
  */

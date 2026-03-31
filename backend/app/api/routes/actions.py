@@ -1,8 +1,9 @@
+import json
 from fastapi import APIRouter, HTTPException
 from typing import Optional
 from app.config import settings
 from app.schemas import ActionGenerateRequest, ActionGenerateResponse, ActionType
-from app.services import llm_service
+from app.services import llm_service, document_processor
 
 
 router = APIRouter(prefix="/actions", tags=["Actions"])
@@ -11,15 +12,10 @@ router = APIRouter(prefix="/actions", tags=["Actions"])
 def _build_action_prompt(action_type: ActionType, language: str, user_goal: Optional[str]) -> str:
     lang_instruction = "ตอบเป็นภาษาไทย" if language.lower() == "th" else "ตอบเป็นภาษาอังกฤษ"
 
-    if action_type == ActionType.DIAGRAM:
-        base = (
-            "จากข้อมูลในเอกสาร จงสร้างแผนภาพในรูปแบบ Mermaid เท่านั้น\n"
-            "เงื่อนไข:\n"
-            "1) ตอบเฉพาะโค้ด mermaid โดยไม่ใส่ markdown fence\n"
-            "2) ใช้รูปแบบที่เหมาะกับเนื้อหา เช่น flowchart หรือ mindmap\n"
-            "3) ถ้าไม่พอข้อมูลให้ระบุโหนด Unknown เท่าที่จำเป็น\n"
-        )
-    elif action_type == ActionType.CHART:
+    if action_type == ActionType.MINDMAP:
+        return document_processor.build_mindmap_prompt(language=language, user_goal=user_goal)
+
+    if action_type == ActionType.CHART:
         base = (
             "จากข้อมูลในเอกสาร จงสร้างข้อมูลสำหรับกราฟในรูปแบบ JSON เท่านั้น\n"
             "เงื่อนไข:\n"
@@ -37,7 +33,7 @@ def _build_action_prompt(action_type: ActionType, language: str, user_goal: Opti
             "3) slides เป็น array โดยแต่ละรายการมี: slide_title, key_points (array), speaker_notes\n"
             "4) จำนวนสไลด์ 6-8 หน้า\n"
         )
-    else:
+    elif action_type == ActionType.INFOGRAPHIC:
         base = (
             "จากข้อมูลในเอกสาร จงสร้างโครงอินโฟกราฟิกในรูปแบบ JSON เท่านั้น\n"
             "เงื่อนไข:\n"
@@ -49,6 +45,8 @@ def _build_action_prompt(action_type: ActionType, language: str, user_goal: Opti
             "6) theme ให้เป็นคำสั้นๆ เช่น ocean, emerald, amber, slate\n"
             "7) visual_style ให้เป็นคำสั้นๆ เช่น modern-card, data-story, minimal-bold\n"
         )
+    else:
+        raise ValueError(f"Unsupported action type: {action_type}")
 
     goal_text = f"\nเป้าหมายเพิ่มเติมจากผู้ใช้: {user_goal.strip()}" if user_goal and user_goal.strip() else ""
     return f"{base}\n{lang_instruction}{goal_text}"
@@ -58,7 +56,7 @@ def _build_action_prompt(action_type: ActionType, language: str, user_goal: Opti
 async def generate_action(request: ActionGenerateRequest):
     """
     สร้างผลลัพธ์เฉพาะทางจากเอกสารใน session เดียวกัน
-    - diagram (Mermaid)
+    - mindmap (JSON)
     - chart (JSON)
     - slides (JSON)
     - infographic (JSON)
@@ -73,10 +71,15 @@ async def generate_action(request: ActionGenerateRequest):
             model_name=model_name,
         )
 
+        answer = result.get("answer") or ""
+        if request.action_type == ActionType.MINDMAP:
+            parsed_mindmap = document_processor.parse_mindmap_markdown(answer)
+            answer = json.dumps(parsed_mindmap, ensure_ascii=False)
+
         return ActionGenerateResponse(
             action_type=request.action_type,
             prompt=prompt,
-            answer=result.get("answer") or "",
+                answer=answer,
             thinking=result.get("thinking"),
             model_name=model_name,
             citations=result.get("citations"),

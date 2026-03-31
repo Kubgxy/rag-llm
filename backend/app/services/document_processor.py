@@ -29,7 +29,7 @@ class DocumentProcessorService:
         ประมวลผลเอกสารแบบ Background Task
         - สกัดข้อความ
         - สร้าง Vector Index
-        - สร้าง Summary และ Mindmap
+        - สร้าง Summary
 
         Args:
             file_path: Path ของไฟล์
@@ -88,7 +88,7 @@ class DocumentProcessorService:
             # 3. เปลี่ยนสถานะเป็น ready_for_chat (ช่วงนี้สามารถเริ่มแชทได้แล้ว)
             doc_status[task_id] = {
                 "status": DocumentStatus.READY_FOR_CHAT,
-                "summary": "⏳ AI กำลังสรุปเนื้อหาและสร้าง Mindmap อยู่เบื้องหลัง คุณสามารถเริ่มพิมพ์ถามตอบได้เลย...",
+                "summary": "⏳ AI กำลังสรุปเนื้อหาอยู่เบื้องหลัง คุณสามารถเริ่มพิมพ์ถามตอบได้เลย...",
                 "mindmap": {"nodes": [], "edges": []}
             }
             print(f"✅ [Index] {filename} สร้าง Vector เสร็จแล้ว (เริ่มแชทได้เลย)!")
@@ -97,15 +97,11 @@ class DocumentProcessorService:
             print(f"⏳ [LLM] กำลังสร้าง Summary...")
             summary = asyncio.run(self._generate_summary(index))
 
-            # 5. สร้าง Mindmap (Background)
-            print(f"⏳ [LLM] กำลังสร้าง Mindmap...")
-            mindmap = asyncio.run(self._generate_mindmap(index))
-
-            # 6. อัพเดทสถานะเป็น completed
+            # 5. อัพเดทสถานะเป็น completed
             doc_status[task_id] = {
                 "status": DocumentStatus.COMPLETED,
                 "summary": summary,
-                "mindmap": mindmap
+                "mindmap": {"nodes": [], "edges": []}
             }
             print(f"🎉 [Task] ประมวลผล {filename} เสร็จสิ้น 100%!\n")
 
@@ -143,8 +139,45 @@ class DocumentProcessorService:
     async def _generate_mindmap(self, index: VectorStoreIndex) -> Dict:
         """สร้าง Mindmap JSON พร้อม hierarchy structure"""
         try:
-            # Request structured markdown hierarchy for expandable mindmap
-            prompt = """จงอ่านเอกสารนี้แล้วสร้าง Mind Map แบบ Hierarchical Tree โดยใช้รูปแบบ Markdown
+            prompt = self.build_mindmap_prompt()
+            llm = llm_service.get_llm(settings.DEFAULT_LLM_MODEL)
+            query_engine = index.as_query_engine(llm=llm, similarity_top_k=3)
+
+            try:
+                response = await asyncio.to_thread(query_engine.query, prompt)
+            except Exception as e:
+                if llm_service.fallback_to_cpu_if_needed(e):
+                    llm = llm_service.get_llm(settings.DEFAULT_LLM_MODEL)
+                    query_engine = index.as_query_engine(llm=llm, similarity_top_k=3)
+                    response = await asyncio.to_thread(query_engine.query, prompt)
+                else:
+                    raise
+
+            hierarchy_text = str(response)
+
+            # Parse markdown hierarchy เป็น tree structure
+            mindmap = self.parse_mindmap_markdown(hierarchy_text)
+            print(f"✅ [Mindmap] สร้าง hierarchy สำเร็จ ({len(mindmap['nodes'])} nodes)")
+            return mindmap
+
+        except Exception as e:
+            print(f"⚠️ [Mindmap Error] {str(e)}")
+            return {
+                "nodes": [
+                    {
+                        "id": "1",
+                        "label": "หัวข้อหลัก",
+                        "parentId": None,
+                        "level": 0,
+                        "type": "root"
+                    }
+                ],
+                "edges": []
+            }
+
+    def build_mindmap_prompt(self, language: str = "th", user_goal: Optional[str] = None) -> str:
+        """สร้าง prompt สำหรับให้ LLM สร้าง Mindmap แบบ markdown hierarchy"""
+        base_prompt = """จงอ่านเอกสารนี้แล้วสร้าง Mind Map แบบ Hierarchical Tree โดยใช้รูปแบบ Markdown
 
 รูปแบบ:
 - `#` หัวข้อหลักสุด (Root) - 1 อันเท่านั้น - ใช้ชื่อเอกสารหรือหัวข้อใหญ่ที่สุด
@@ -169,40 +202,14 @@ class DocumentProcessorService:
 #### รายละเอียด 2.1.1
 
 เนื้อหาเอกสาร:"""
-            llm = llm_service.get_llm(settings.DEFAULT_LLM_MODEL)
-            query_engine = index.as_query_engine(llm=llm, similarity_top_k=3)
 
-            try:
-                response = await asyncio.to_thread(query_engine.query, prompt)
-            except Exception as e:
-                if llm_service.fallback_to_cpu_if_needed(e):
-                    llm = llm_service.get_llm(settings.DEFAULT_LLM_MODEL)
-                    query_engine = index.as_query_engine(llm=llm, similarity_top_k=3)
-                    response = await asyncio.to_thread(query_engine.query, prompt)
-                else:
-                    raise
+        lang_instruction = "ตอบเป็นภาษาไทย" if language.lower() == "th" else "ตอบเป็นภาษาอังกฤษ"
+        goal_text = f"\nเป้าหมายเพิ่มเติมจากผู้ใช้: {user_goal.strip()}" if user_goal and user_goal.strip() else ""
+        return f"{base_prompt}\n{lang_instruction}{goal_text}"
 
-            hierarchy_text = str(response)
-
-            # Parse markdown hierarchy เป็น tree structure
-            mindmap = self._parse_markdown_hierarchy(hierarchy_text)
-            print(f"✅ [Mindmap] สร้าง hierarchy สำเร็จ ({len(mindmap['nodes'])} nodes)")
-            return mindmap
-
-        except Exception as e:
-            print(f"⚠️ [Mindmap Error] {str(e)}")
-            return {
-                "nodes": [
-                    {
-                        "id": "1",
-                        "label": "หัวข้อหลัก",
-                        "parentId": None,
-                        "level": 0,
-                        "type": "root"
-                    }
-                ],
-                "edges": []
-            }
+    def parse_mindmap_markdown(self, markdown_text: str) -> Dict:
+        """แปลง markdown hierarchy เป็นโครงสร้าง Mindmap JSON"""
+        return self._parse_markdown_hierarchy(markdown_text)
 
     def _parse_markdown_hierarchy(self, markdown_text: str) -> Dict:
         """Parse markdown hierarchy (# ## ###) into tree structure with parent-child relationships"""

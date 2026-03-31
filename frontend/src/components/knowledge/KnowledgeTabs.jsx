@@ -1,26 +1,32 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useDocumentStore } from '../../stores/documentStore.js'
 import { useLanguageStore } from '../../stores/languageStore.js'
 import { useSessionStore } from '../../stores/sessionStore.js'
 import { useToast } from '../ui/Toast.jsx'
 import { generateKnowledgeAction } from '../../services/api.js'
 import Summary from './Summary.jsx'
-import Mindmap from './Mindmap.jsx'
 import ActionResults from './ActionResults.jsx'
-import { FileText, GitBranch, Sparkles, BarChart3, Presentation, Image, Waypoints } from 'lucide-react'
+import { FileText, GitBranch, Sparkles, BarChart3, Presentation, Image } from 'lucide-react'
 
 export default function KnowledgeTabs() {
-  const { activeTab, setActiveTab, summary, mindmapNodes, addActionResult } = useDocumentStore()
+  const { activeTab, setActiveTab, summary, actionResults, addActionResult } = useDocumentStore()
   const { t, lang } = useLanguageStore()
   const { addToast } = useToast()
   const [actionLoading, setActionLoading] = useState(null)
 
+  // Handle persisted legacy tab value after mindmap tab removal.
+  useEffect(() => {
+    if (activeTab === 'mindmap') {
+      setActiveTab('actions')
+    }
+  }, [activeTab, setActiveTab])
+
   const ACTIONS = [
     {
-      id: 'diagram',
-      label: t('knowledgeActionDiagram'),
-      promptLabel: t('knowledgeActionPromptDiagram'),
-      icon: Waypoints,
+      id: 'mindmap',
+      label: t('knowledgeActionMindmap'),
+      promptLabel: t('knowledgeActionPromptMindmap'),
+      icon: GitBranch,
     },
     {
       id: 'chart',
@@ -78,11 +84,10 @@ export default function KnowledgeTabs() {
 
   const TABS = [
     { id: 'summary', label: t('knowledgeTabSummary'), icon: FileText },
-    { id: 'mindmap', label: t('knowledgeTabMindmap'), icon: GitBranch },
     { id: 'actions', label: t('knowledgeTabActions'), icon: Sparkles },
   ]
 
-  const hasContent = summary || mindmapNodes.length > 0
+  const hasContent = summary || actionResults.length > 0
 
   if (!hasContent) {
     return (
@@ -161,7 +166,6 @@ export default function KnowledgeTabs() {
       {/* Tab content */}
       <div className="flex-1 mt-4 min-h-0">
         {activeTab === 'summary' && <Summary />}
-        {activeTab === 'mindmap' && <Mindmap />}
         {activeTab === 'actions' && <ActionResults />}
       </div>
     </div>

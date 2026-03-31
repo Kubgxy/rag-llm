@@ -66,7 +66,7 @@ export function useUpload() {
             // 🟢 จังหวะที่ 2: งานเบื้องหลังเสร็จหมดแล้ว
             else if (statusData.status === 'completed') {
               clearInterval(pollInterval); // หยุดการถามเซิร์ฟเวอร์
-              // อัปเดต Summary และ Mindmap ตัวจริงเข้าไปทับ
+              // อัปเดต Summary ตัวจริงเข้าไปทับ (Mindmap สร้างผ่าน Action)
               setUploadResult({
                 fileName: file.name,
                 summary: statusData.summary,
