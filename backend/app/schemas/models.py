@@ -56,6 +56,7 @@ class ChatRequest(BaseModel):
 
 class RuntimeStatusResponse(BaseModel):
     device: str = Field(..., description="Runtime device ปัจจุบัน (cpu/gpu)")
+    active_requests: int = Field(default=0, description="จำนวน LLM requests ที่ active อยู่")
 
 
 class RuntimeUpdateRequest(BaseModel):
@@ -63,6 +64,29 @@ class RuntimeUpdateRequest(BaseModel):
     model_names: Optional[List[str]] = Field(
         default=None,
         description="รายชื่อโมเดลที่ต้องการ warmup หลังสลับ runtime"
+    )
+    wait_for_pending: bool = Field(
+        default=True,
+        description="รอให้ pending requests เสร็จก่อน switch หรือไม่"
+    )
+    force: bool = Field(
+        default=False,
+        description="บังคับ switch ทันทีโดยไม่รอ pending requests"
+    )
+
+
+class RestartStatusResponse(BaseModel):
+    status: str = Field(..., description="สถานะ restart (idle/waiting_requests/shutting_down/restarting/ready)")
+    message: str = Field(default="", description="ข้อความสถานะปัจจุบัน")
+    progress: int = Field(default=0, description="Progress 0-100")
+    active_requests: int = Field(default=0, description="จำนวน requests ที่ active")
+
+
+class RestartRequest(BaseModel):
+    device: Optional[str] = Field(default=None, description="Runtime device ใหม่หลัง restart (cpu/gpu)")
+    model_names: Optional[List[str]] = Field(
+        default=None,
+        description="รายชื่อโมเดลที่ต้องการ warmup หลัง restart"
     )
 
 

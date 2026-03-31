@@ -60,6 +60,7 @@ class LLMService:
             options["num_gpu"] = 0
             options["num_ctx"] = min(settings.LLM_NUM_CTX, settings.CPU_LLM_NUM_CTX)
             options["num_predict"] = settings.CPU_LLM_NUM_PREDICT
+            
         elif settings.OLLAMA_NUM_GPU >= 0:
             options["num_gpu"] = settings.OLLAMA_NUM_GPU
 
@@ -208,8 +209,18 @@ class LLMService:
         Returns:
             Dict with 'thinking' (optional) and 'answer' keys
         """
+        from app.services.runtime_manager import runtime_manager
+        
         start_time = time.time()
         print(f"💬 [Query] {session_id}: {query}")
+        
+        # กำหนด top_k ตาม runtime
+        current_runtime = runtime_manager.get_runtime()
+        if current_runtime == "cpu":
+            effective_top_k = settings.CPU_SIMILARITY_TOP_K
+            print(f"   ⚡ CPU Mode: ใช้ top_k={effective_top_k} เพื่อลด context")
+        else:
+            effective_top_k = settings.SIMILARITY_TOP_K
 
         # ดึง Storage Context สำหรับ session นี้
         t1 = time.time()
@@ -223,8 +234,8 @@ class LLMService:
         )
         print(f"   ⏱️ Create index: {time.time() - t1:.2f}s")
 
-        # 1. Vector Retriever
-        vector_retriever = index.as_retriever(similarity_top_k=3)
+        # 1. Vector Retriever - ใช้ effective_top_k ที่กำหนดตาม runtime
+        vector_retriever = index.as_retriever(similarity_top_k=effective_top_k)
 
         # 2. BM25 Retriever
         bm25_retriever = vector_store_service.get_bm25_retriever(session_id)
@@ -234,14 +245,14 @@ class LLMService:
 
         # 4. FlashRank Reranker (Cross-Encoder)
         if hasattr(self, 'reranker') and self.reranker:
-            # Update top_n if it differs from current setting
-            if self.reranker.top_n != settings.SIMILARITY_TOP_K:
-                print(f"🔧 Updating FlashRank top_n from {self.reranker.top_n} to {settings.SIMILARITY_TOP_K}")
+            # Update top_n if it differs from current effective_top_k
+            if self.reranker.top_n != effective_top_k:
+                print(f"🔧 Updating FlashRank top_n from {self.reranker.top_n} to {effective_top_k}")
                 # Create new instance with updated top_n
                 import os
                 cache_dir = os.path.join(vector_store_service.bm25_persist_dir, "flashrank_models")
                 self.reranker = FlashrankReranker(
-                    top_n=settings.SIMILARITY_TOP_K,
+                    top_n=effective_top_k,
                     model_name=settings.FLASHRANK_MODEL,
                     cache_dir=cache_dir
                 )

@@ -1,15 +1,15 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 import asyncio
 import re
 from app.schemas import ChatRequest, ChatResponse, ChatTitleRequest, CompareRequest, CompareResponse
-from app.services import llm_service
+from app.services import llm_service, runtime_manager
 
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
 
 @router.post("/single", response_model=ChatResponse)
-async def chat_single(request: ChatRequest):
+async def chat_single(request: ChatRequest, http_request: Request):
     """
     ถามคำถามกับ LLM โดยใช้ context จาก Vector Store
 
@@ -19,9 +19,17 @@ async def chat_single(request: ChatRequest):
     Returns:
         ChatResponse พร้อมคำตอบจาก LLM (อาจมี thinking blocks)
     """
+    # ลงทะเบียน request สำหรับ tracking
+    request_id = runtime_manager.register_request()
+    
     try:
         print(f"💬 [API] ได้รับคำถาม: {request.query}")
-        print(f"   Session: {request.session_id}, Model: {request.model_name}")
+        print(f"   Session: {request.session_id}, Model: {request.model_name}, RequestID: {request_id[:8]}")
+
+        # ตรวจสอบว่า client ยังเชื่อมต่ออยู่หรือไม่
+        if await http_request.is_disconnected():
+            print(f"⚠️ [Chat] Client disconnected before processing (RequestID: {request_id[:8]})")
+            raise HTTPException(status_code=499, detail="Client closed request")
 
         # ถามคำถาม (returns dict with thinking & answer)
         result = await llm_service.query_with_context(
@@ -38,12 +46,19 @@ async def chat_single(request: ChatRequest):
             citations=result.get("citations")
         )
 
+    except asyncio.CancelledError:
+        print(f"⚠️ [Chat] Request cancelled (RequestID: {request_id[:8]})")
+        raise HTTPException(status_code=499, detail="Request cancelled")
     except Exception as e:
         print(f"❌ [Chat Error] {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"เกิดข้อผิดพลาดในการตอบคำถาม: {str(e)}"
         )
+    finally:
+        # ยกเลิกการลงทะเบียน request
+        runtime_manager.unregister_request(request_id)
+        print(f"✅ [Chat] Request completed (RequestID: {request_id[:8]})")
 
 
 @router.post("/suggest-title")
@@ -96,7 +111,7 @@ async def suggest_title(request: ChatTitleRequest):
 
 
 @router.post("/compare", response_model=CompareResponse)
-async def chat_compare(request: CompareRequest):
+async def chat_compare(request: CompareRequest, http_request: Request):
     """
     ถามคำถามเดียวกันกับ 2 โมเดลแล้วเปรียบเทียบ
 
@@ -106,12 +121,20 @@ async def chat_compare(request: CompareRequest):
     Returns:
         CompareResponse พร้อมคำตอบจากทั้ง 2 โมเดล
     """
+    # ลงทะเบียน request สำหรับ tracking
+    request_id = runtime_manager.register_request()
+    
     try:
         if request.model_a == request.model_b:
             raise ValueError("โปรดเลือกโมเดลที่ต่างกัน")
 
         print(f"⚔️  [Compare] ถามทั้ง {request.model_a} และ {request.model_b}")
-        print(f"   Query: {request.query}")
+        print(f"   Query: {request.query}, RequestID: {request_id[:8]}")
+
+        # ตรวจสอบว่า client ยังเชื่อมต่ออยู่หรือไม่
+        if await http_request.is_disconnected():
+            print(f"⚠️ [Compare] Client disconnected before processing")
+            raise HTTPException(status_code=499, detail="Client closed request")
 
         # Query ทั้ง 2 โมเดลพร้อมกัน
         result_a, result_b = await asyncio.gather(
@@ -148,6 +171,9 @@ async def chat_compare(request: CompareRequest):
             )
         )
 
+    except asyncio.CancelledError:
+        print(f"⚠️ [Compare] Request cancelled (RequestID: {request_id[:8]})")
+        raise HTTPException(status_code=499, detail="Request cancelled")
     except ValueError as e:
         print(f"⚠️  [Compare Error] {str(e)}")
         raise HTTPException(
@@ -160,3 +186,6 @@ async def chat_compare(request: CompareRequest):
             status_code=500,
             detail=f"เกิดข้อผิดพลาดในการเปรียบเทียบ: {str(e)}"
         )
+    finally:
+        runtime_manager.unregister_request(request_id)
+        print(f"✅ [Compare] Request completed (RequestID: {request_id[:8]})")

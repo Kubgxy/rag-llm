@@ -6,6 +6,8 @@ import { useChatStore } from '../stores/chatStore.js'
 import { useLanguageStore } from '../stores/languageStore.js'
 import { useRuntimeStore } from '../stores/runtimeStore.js'
 import { useToast } from '../components/ui/Toast.jsx'
+import RestartProgress from '../components/ui/RestartProgress.jsx'
+import RuntimeWarningDialog from '../components/ui/RuntimeWarningDialog.jsx'
 
 const EMOJI_LIST = ['💼', '👤', '🔬', '📚', '🎯', '💡', '🎨', '🏠', '🚀', '⭐', '🔥', '💰', '🎓', '🏃', '🎵', '📝', '🌟', '🎮', '📊', '🛠️', '🍕', '✈️', '🏆', '❤️', '🌈', '🔔', '📱', '💻', '🎪', '🎭']
 
@@ -25,10 +27,18 @@ const COLOR_PRESETS = [
 export default function Settings() {
   const navigate = useNavigate()
   const { categories, createCategory, updateCategory, deleteCategory } = useCategoryStore()
-  const { selectedModel } = useChatStore()
+  const { selectedModel, isLoading: chatLoading } = useChatStore()
   const { t } = useLanguageStore()
   const { addToast } = useToast()
-  const { device, isLoading: runtimeLoading, fetchRuntime, updateRuntime, isInitialized } = useRuntimeStore()
+  const { 
+    device, 
+    isLoading: runtimeLoading, 
+    fetchRuntime, 
+    updateRuntime, 
+    isInitialized,
+    activeRequests,
+    restartStatus,
+  } = useRuntimeStore()
 
   useEffect(() => {
     fetchRuntime().catch(() => {
@@ -59,6 +69,7 @@ export default function Settings() {
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [confirmRuntimeOpen, setConfirmRuntimeOpen] = useState(false)
   const [pendingRuntimeDevice, setPendingRuntimeDevice] = useState(null)
+  const [warningDialogOpen, setWarningDialogOpen] = useState(false)
 
   const handleCreate = () => {
     if (!formData.name.trim()) return
@@ -96,7 +107,55 @@ export default function Settings() {
     if (runtimeLoading || device === nextDevice) return
 
     setPendingRuntimeDevice(nextDevice)
+    
+    // ตรวจสอบว่ามี active requests หรือ chat กำลังโหลดอยู่
+    if (activeRequests > 0 || chatLoading) {
+      setWarningDialogOpen(true)
+      return
+    }
+    
+    // ถ้าไม่มี active requests ให้แสดง confirm dialog ปกติ
     setConfirmRuntimeOpen(true)
+  }
+
+  const handleWaitAndSwitch = async () => {
+    setWarningDialogOpen(false)
+    const nextDevice = pendingRuntimeDevice
+    
+    if (!nextDevice) return
+    
+    try {
+      // Switch โดยรอ pending requests เสร็จก่อน
+      await updateRuntime(nextDevice, selectedModel ? [selectedModel] : [], {
+        waitForPending: true,
+        force: false,
+      })
+      // Toast จะแสดงใน handleRestartComplete
+    } catch (err) {
+      addToast(err.message || t('settingsRuntimeUpdateError'), 'error')
+    } finally {
+      setPendingRuntimeDevice(null)
+    }
+  }
+
+  const handleForceSwitch = async () => {
+    setWarningDialogOpen(false)
+    const nextDevice = pendingRuntimeDevice
+    
+    if (!nextDevice) return
+    
+    try {
+      // Force switch ทันทีโดยไม่รอ
+      await updateRuntime(nextDevice, selectedModel ? [selectedModel] : [], {
+        waitForPending: false,
+        force: true,
+      })
+      // Toast จะแสดงใน handleRestartComplete
+    } catch (err) {
+      addToast(err.message || t('settingsRuntimeUpdateError'), 'error')
+    } finally {
+      setPendingRuntimeDevice(null)
+    }
   }
 
   const confirmRuntimeSwitch = async () => {
@@ -107,17 +166,16 @@ export default function Settings() {
       return
     }
 
+    // ปิด dialog ก่อน เพื่อให้เห็น progress overlay
+    setConfirmRuntimeOpen(false)
+
     try {
       // เน้น warmup เฉพาะโมเดลหลักที่ผู้ใช้ใช้อยู่ เพื่อให้สลับ runtime ได้ไว
       await updateRuntime(nextDevice, selectedModel ? [selectedModel] : [])
-      addToast(
-        tr('settingsRuntimeUpdated', { device: nextDevice.toUpperCase() }),
-        'success'
-      )
+      // Toast จะแสดงใน handleRestartComplete แทน
     } catch (err) {
       addToast(err.message || t('settingsRuntimeUpdateError'), 'error')
     } finally {
-      setConfirmRuntimeOpen(false)
       setPendingRuntimeDevice(null)
     }
   }
@@ -127,8 +185,30 @@ export default function Settings() {
     setPendingRuntimeDevice(null)
   }
 
+  const handleRestartComplete = () => {
+    addToast('Runtime สลับสำเร็จ!', 'success')
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-surface-50 via-primary-50/20 to-surface-100 dark:from-surface-950 dark:via-primary-950/10 dark:to-surface-900">
+      {/* Restart Progress Overlay */}
+      {restartStatus !== 'idle' && (
+        <RestartProgress onComplete={handleRestartComplete} />
+      )}
+
+      {/* Warning Dialog for Active Requests */}
+      <RuntimeWarningDialog
+        isOpen={warningDialogOpen}
+        onClose={() => {
+          setWarningDialogOpen(false)
+          setPendingRuntimeDevice(null)
+        }}
+        onWait={handleWaitAndSwitch}
+        onForce={handleForceSwitch}
+        activeRequests={activeRequests || (chatLoading ? 1 : 0)}
+        targetDevice={pendingRuntimeDevice}
+      />
+
       {/* Header */}
       <header className="h-16 bg-white dark:bg-surface-900 border-b border-surface-200 dark:border-surface-800 flex items-center px-4 shadow-sm">
         <button
@@ -139,6 +219,7 @@ export default function Settings() {
           <span className="font-semibold">{t('settingsBackHome')}</span>
         </button>
       </header>
+
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-6 py-12">

@@ -41,7 +41,8 @@ export const useChatStore = create(
             id: `msg-${Date.now()}-${Math.random()}`,
             role: 'user',
             content,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            needsRetry: false, // สำหรับ retry logic
           }],
         })),
 
@@ -54,7 +55,8 @@ export const useChatStore = create(
               content: data,
               timestamp: Date.now(),
               thinking: null,
-              metadata: { thinkingExpanded: false }
+              metadata: { thinkingExpanded: false },
+              needsRetry: false,
             }
           : {
               id: data.id || `msg-${Date.now()}-${Math.random()}`,
@@ -62,12 +64,38 @@ export const useChatStore = create(
               content: data.content,
               thinking: data.thinking || null,
               timestamp: data.timestamp || Date.now(),
-              metadata: data.metadata || { thinkingExpanded: false }
+              metadata: data.metadata || { thinkingExpanded: false },
+              needsRetry: false,
             }
 
         return set((state) => ({
           messages: [...state.messages, messageData],
         }))
+      },
+
+      // Mark a message as needing retry (เช่น เมื่อถูก cancel จากการ switch runtime)
+      markMessageNeedsRetry: (messageId) =>
+        set((state) => ({
+          messages: state.messages.map(msg =>
+            msg.id === messageId
+              ? { ...msg, needsRetry: true }
+              : msg
+          )
+        })),
+
+      // Clear retry flag
+      clearRetryFlag: (messageId) =>
+        set((state) => ({
+          messages: state.messages.map(msg =>
+            msg.id === messageId
+              ? { ...msg, needsRetry: false }
+              : msg
+          )
+        })),
+
+      // Get all messages that need retry
+      getMessagesNeedingRetry: () => {
+        return get().messages.filter(m => m.needsRetry && m.role === 'user')
       },
 
       toggleThinkingExpanded: (messageId) =>

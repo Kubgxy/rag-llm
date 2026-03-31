@@ -171,13 +171,44 @@ export const getRuntimeStatus = async () => {
  * PUT /runtime/device
  * @param {string} device - cpu|gpu
  * @param {string[]} modelNames - optional models to warmup after switch
+ * @param {boolean} waitForPending - wait for pending requests to complete
+ * @param {boolean} force - force switch without waiting
  */
-export const setRuntimeDevice = async (device, modelNames = []) => {
-  const payload = { device }
+export const setRuntimeDevice = async (device, modelNames = [], waitForPending = true, force = false) => {
+  const payload = { 
+    device,
+    wait_for_pending: waitForPending,
+    force
+  }
   if (Array.isArray(modelNames) && modelNames.length > 0) {
     payload.model_names = modelNames
   }
   const { data } = await api.put('/runtime/device', payload)
+  return data
+}
+
+/**
+ * Get restart/switch status for polling
+ * GET /runtime/restart-status
+ */
+export const getRestartStatus = async () => {
+  const { data } = await api.get('/runtime/restart-status')
+  return data
+}
+
+/**
+ * Trigger backend restart
+ * POST /runtime/restart
+ * @param {string} device - optional new device after restart
+ * @param {string[]} modelNames - optional models to warmup
+ */
+export const restartBackend = async (device = null, modelNames = []) => {
+  const payload = {}
+  if (device) payload.device = device
+  if (Array.isArray(modelNames) && modelNames.length > 0) {
+    payload.model_names = modelNames
+  }
+  const { data } = await api.post('/runtime/restart', payload)
   return data
 }
 
