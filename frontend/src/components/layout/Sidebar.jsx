@@ -36,6 +36,7 @@ export default function Sidebar({ isCollapsed, toggleSidebar }) {
       useChatStore.setState({ messages: sessionData.messages || [] })
       useDocumentStore.setState({
         documents: sessionData.documents || [],
+        importedWebSources: sessionData.importedWebSources || [],
         summary: sessionData.summary || '',
         mindmapNodes: sessionData.mindmapNodes || [],
         mindmapEdges: sessionData.mindmapEdges || [],

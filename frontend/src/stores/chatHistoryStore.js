@@ -4,7 +4,7 @@ import { persist } from 'zustand/middleware'
 export const useChatHistoryStore = create(
   persist(
     (set, get) => ({
-      history: {}, // { sessionId: { title, messages, documents, summary, mindmapNodes, mindmapEdges, categoryId, updatedAt } }
+      history: {}, // { sessionId: { title, messages, documents, importedWebSources, summary, mindmapNodes, mindmapEdges, categoryId, updatedAt } }
       activeSessionId: null,
 
       setActiveSession: (sessionId) => set({ activeSessionId: sessionId }),
@@ -24,6 +24,7 @@ export const useChatHistoryStore = create(
                 title,
                 messages,
                 documents: docData?.documents || state.history[sessionId]?.documents,
+                importedWebSources: docData?.importedWebSources || state.history[sessionId]?.importedWebSources,
                 summary: docData?.summary || state.history[sessionId]?.summary,
                 mindmapNodes: docData?.mindmapNodes || state.history[sessionId]?.mindmapNodes,
                 mindmapEdges: docData?.mindmapEdges || state.history[sessionId]?.mindmapEdges,

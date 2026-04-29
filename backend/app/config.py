@@ -49,6 +49,9 @@ class Settings(BaseSettings):
 
     # Query settings
     SIMILARITY_TOP_K: int = 3
+    
+    # Web search settings
+    TAVILY_API_KEY: str = ""
 
     class Config:
         env_file = ".env"

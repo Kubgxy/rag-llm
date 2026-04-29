@@ -85,6 +85,7 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
       useChatStore.setState({ messages: sessionData.messages || [] })
       useDocumentStore.setState({
         documents: sessionData.documents || [],
+        importedWebSources: sessionData.importedWebSources || [],
         summary: sessionData.summary || '',
         mindmapNodes: sessionData.mindmapNodes || [],
         mindmapEdges: sessionData.mindmapEdges || [],

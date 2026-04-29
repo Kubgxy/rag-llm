@@ -17,7 +17,12 @@ from .models import (
     ErrorResponse,
     Mindmap,
     MindmapNode,
-    MindmapEdge
+    MindmapEdge,
+    WebSearchRequest,
+    WebSearchResult,
+    WebSearchResponse,
+    WebImportRequest,
+    WebImportResponse,
 )
 
 __all__ = [
@@ -39,5 +44,10 @@ __all__ = [
     "ErrorResponse",
     "Mindmap",
     "MindmapNode",
-    "MindmapEdge"
+    "MindmapEdge",
+    "WebSearchRequest",
+    "WebSearchResult",
+    "WebSearchResponse",
+    "WebImportRequest",
+    "WebImportResponse",
 ]

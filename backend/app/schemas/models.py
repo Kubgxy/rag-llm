@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Literal
 from enum import Enum
 
 
@@ -95,6 +95,8 @@ class Citation(BaseModel):
     page_label: str
     text_snippet: Optional[str] = None
     similarity_score: Optional[float] = None
+    source_type: Optional[Literal["pdf", "web"]] = None
+    url: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
@@ -143,3 +145,45 @@ class ActionGenerateResponse(BaseModel):
 class ErrorResponse(BaseModel):
     status: str = "error"
     message: str
+
+
+class WebSearchRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=500, description="คีย์เวิร์ดที่ต้องการค้นหา")
+    session_id: str = Field(..., min_length=1, description="Session ID สำหรับ cache ผลค้นหาเว็บ")
+    search_depth: Literal["basic", "advanced"] = Field(
+        default="basic",
+        description="ระดับความลึกของการค้นหา Tavily",
+    )
+    include_answer: Literal["none", "basic", "advanced"] = Field(
+        default="none",
+        description="ระดับการให้คำตอบสรุปจาก Tavily",
+    )
+    max_results: int = Field(default=10, ge=1, le=20, description="จำนวนผลลัพธ์สูงสุด")
+
+
+class WebSearchResult(BaseModel):
+    title: str
+    url: str
+    snippet: str
+    source: str = ""
+
+
+class WebSearchResponse(BaseModel):
+    query: str
+    session_id: str
+    results: List[WebSearchResult]
+    total_results: int
+
+
+class WebImportRequest(BaseModel):
+    session_id: str = Field(..., min_length=1, description="Session ID สำหรับนำข้อมูลเข้า collection เดิม")
+    urls: List[str] = Field(..., min_length=1, description="รายการ URL ที่ผู้ใช้เลือกนำเข้า")
+
+
+class WebImportResponse(BaseModel):
+    status: str
+    session_id: str
+    imported_count: int
+    total_selected: int
+    message: str
+    imported_sources: List[WebSearchResult] = []

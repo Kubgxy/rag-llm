@@ -352,10 +352,17 @@ class LLMService:
             seen_sources = set()
             for node in response.source_nodes:
                 metadata = node.node.metadata
+                source_type = metadata.get("source_type", "pdf")
                 file_name = metadata.get("file_name", "Unknown File")
                 page_label = metadata.get("page_label", "N/A")
+                url = metadata.get("url")
+
+                if source_type == "web":
+                    file_name = metadata.get("source") or metadata.get("title") or file_name
+                    page_label = "web"
+                
                 score = getattr(node, 'score', None)
-                source_id = f"{file_name}_{page_label}"
+                source_id = f"{source_type}_{file_name}_{page_label}_{url or ''}"
                 
                 if source_id not in seen_sources:
                     seen_sources.add(source_id)
@@ -363,7 +370,9 @@ class LLMService:
                         "file_name": file_name,
                         "page_label": page_label,
                         "text_snippet": node.node.get_text()[:200] + "...", 
-                        "similarity_score": float(score) if score is not None else None
+                        "similarity_score": float(score) if score is not None else None,
+                        "source_type": source_type,
+                        "url": url,
                     })
 
         return {

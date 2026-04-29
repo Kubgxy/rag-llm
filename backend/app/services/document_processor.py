@@ -3,13 +3,13 @@ import json
 import re
 import asyncio
 from typing import Dict, List, Optional
-from llama_index.retrievers.bm25 import BM25Retriever
-from app.services.vector_store import vector_store_service, thai_tokenizer
+from app.services.vector_store import vector_store_service
 from llama_index.core import Document, VectorStoreIndex
+from llama_index.core.node_parser import SentenceSplitter
 from app.config import settings
-from app.utils.ocr import extract_text_by_page, extract_text_from_pdf
+from app.utils.ocr import extract_text_by_page
 from app.services.llm_service import llm_service
-from app.schemas.models import DocumentStatus, Mindmap, MindmapNode
+from app.schemas.models import DocumentStatus
 
 
 # Global dictionary เก็บสถานะการประมวลผล
@@ -63,22 +63,17 @@ class DocumentProcessorService:
             # 2. สร้าง Vector Index และ BM25
             print(f"🔍 [Task] กำลังสร้าง Vector Index และ BM25 ({len(docs)} chunks/pages)...")
             storage_context = vector_store_service.get_session_storage(session_id)
-            index = VectorStoreIndex.from_documents(
-                docs,
+            splitter = SentenceSplitter(chunk_size=1500, chunk_overlap=150)
+            nodes = splitter.get_nodes_from_documents(docs)
+            index = VectorStoreIndex(
+                nodes=nodes,
                 storage_context=storage_context
             )
             
             # 2.5 สร้าง BM25 Retriever สำหรับ Keyword Search แบบภาษาไทย
             try:
-                # เนื่องจาก ChromaDB ไม่ได้เก็บ Node ไว้ใน in-memory docstore หลัก
-                # เราจึงสามารถนำตัวแปร docs (หน้าเอกสาร) ที่เราสร้างไว้มาใส่เป็น Node สำหรับ BM25 ได้เลย
-                if docs:
-                    bm25_retriever = BM25Retriever.from_defaults(
-                        nodes=docs,
-                        similarity_top_k=2,
-                        tokenizer=thai_tokenizer,
-                    )
-                    vector_store_service.save_bm25_retriever(session_id, bm25_retriever)
+                if nodes:
+                    vector_store_service.extend_bm25_nodes(session_id, nodes)
                     print(f"✅ [BM25] สร้าง Keyword Index สำหรับ {filename} เรียบร้อย")
                 else:
                     print(f"⚠️ [BM25] เอกสารว่างเปล่า หรือไม่มีเนื้อหาเพียงพอสำหรับสร้าง BM25")
@@ -301,6 +296,66 @@ class DocumentProcessorService:
             "summary": "",
             "mindmap": {"nodes": [], "edges": []}
         })
+
+    def import_web_sources(self, session_id: str, sources: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        """
+        นำ raw_content จากแหล่งข้อมูลเว็บเข้าสู่ RAG pipeline เดิม
+        - split เป็น chunks
+        - ใส่ metadata source/url
+        - ทำ embedding และบันทึกลง ChromaDB ของ session เดิม
+        """
+        if not sources:
+            return []
+
+        docs: List[Document] = []
+        imported_sources: List[Dict[str, str]] = []
+        for item in sources:
+            raw_content = str(item.get("raw_content", "")).strip()
+            if not raw_content:
+                continue
+
+            title = str(item.get("title", "")).strip() or str(item.get("url", "")).strip()
+            url = str(item.get("url", "")).strip()
+            source = str(item.get("source", "")).strip() or title
+            snippet = str(item.get("snippet", "")).strip()
+
+            docs.append(
+                Document(
+                    text=raw_content,
+                    metadata={
+                        "file_name": source,
+                        "page_label": "web",
+                        "session_id": session_id,
+                        "source_type": "web",
+                        "source": source,
+                        "url": url,
+                        "title": title,
+                        "snippet": snippet,
+                    },
+                )
+            )
+            imported_sources.append({
+                "title": title,
+                "url": url,
+                "snippet": snippet,
+                "source": source,
+            })
+
+        if not docs:
+            return []
+
+        storage_context = vector_store_service.get_session_storage(session_id)
+        splitter = SentenceSplitter(chunk_size=30   00, chunk_overlap=150)
+        nodes = splitter.get_nodes_from_documents(docs)
+        if not nodes:
+            return []
+
+        VectorStoreIndex(
+            nodes=nodes,
+            storage_context=storage_context,
+        )
+        vector_store_service.extend_bm25_nodes(session_id, nodes)
+        return imported_sources
 
 
 # Singleton instance

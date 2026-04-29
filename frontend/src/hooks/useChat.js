@@ -41,7 +41,8 @@ export function useChat() {
           documents: docStore.documents,
           summary: docStore.summary,
           mindmapNodes: docStore.mindmapNodes,
-          mindmapEdges: docStore.mindmapEdges
+          mindmapEdges: docStore.mindmapEdges,
+          importedWebSources: docStore.importedWebSources,
         },
         chatTitle // Pass the chat title to sync
       );

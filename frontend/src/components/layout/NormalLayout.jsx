@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { MessageSquare, FileText, PanelRight } from 'lucide-react'
+import { MessageSquare, FileText, PanelRight, ExternalLink, X } from 'lucide-react'
 import { useDocumentStore } from '../../stores/documentStore.js'
 import { useLanguageStore } from '../../stores/languageStore.js'
 import UploadZone from '../upload/UploadZone.jsx'
+import WebSearchPreview from '../search/WebSearchPreview.jsx'
 import ChatMessage from '../chat/ChatMessage.jsx'
 import ChatInput from '../chat/ChatInput.jsx'
 import KnowledgeTabs from '../knowledge/KnowledgeTabs.jsx'
@@ -27,8 +28,31 @@ export function NormalLayout({
   chatEndRef,
 }) {
   const setPreviewPdf = useDocumentStore(state => state.setPreviewPdf)
+  const importedWebSources = useDocumentStore(state => state.importedWebSources)
+  const [isSourcesModalOpen, setIsSourcesModalOpen] = useState(false)
   const location = useLocation()
   const { t } = useLanguageStore()
+  const getFaviconUrl = (url) => {
+    try {
+      const hostname = new URL(url).hostname
+      return `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`
+    } catch {
+      return null
+    }
+  }
+  const pdfItems = documents.map((doc, index) => ({
+    key: `pdf-${doc.name}-${index}`,
+    title: doc.name,
+    action: () => setPreviewPdf(doc.name),
+  }))
+
+  const webItems = importedWebSources.map((item, index) => ({
+    key: `web-${item.url}-${index}`,
+    title: item.source || item.title || item.url,
+    subtitle: item.url,
+    favicon: getFaviconUrl(item.url),
+    action: () => window.open(item.url, '_blank', 'noopener,noreferrer'),
+  }))
 
   useEffect(() => {
     const scrollTimeout = setTimeout(() => {
@@ -81,24 +105,37 @@ export function NormalLayout({
             {t('normalDocsTitle')}
           </h2>
           <UploadZone />
+          <WebSearchPreview />
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {documents.length === 0 ? (
+          {pdfItems.length === 0 && webItems.length === 0 ? (
             <p className="text-sm text-surface-500 italic text-center mt-4">{t('normalNoDocsInChat')}</p>
           ) : (
-            documents.map((doc, i) => (
+            pdfItems.map((item) => (
               <div
-                key={i}
-                onClick={() => setPreviewPdf(doc.name)}
+                key={item.key}
+                onClick={item.action}
                 className="group flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700 hover:border-primary-400 cursor-pointer transition-colors shadow-sm"
               >
                 <FileText className="w-4 h-4 text-primary-500 shrink-0" />
-                <span className="text-sm font-medium text-surface-700 dark:text-surface-300 truncate">
-                  {doc.name}
-                </span>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium text-surface-700 dark:text-surface-300 truncate block">
+                    {item.title}
+                  </span>
+                </div>
               </div>
             ))
+          )}
+
+          {webItems.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsSourcesModalOpen(true)}
+              className="w-full mt-2 px-3 py-2 rounded-xl border border-surface-300 dark:border-surface-700 text-sm font-medium text-surface-700 dark:text-surface-200 hover:border-primary-400 hover:text-primary-500 transition-colors"
+            >
+              {t('webImportedSourcesButton')} ({webItems.length})
+            </button>
           )}
         </div>
       </div>
@@ -225,6 +262,61 @@ export function NormalLayout({
           )}
         </div>
       </div>
+
+      {isSourcesModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+          onClick={() => setIsSourcesModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl max-h-[80vh] bg-surface-50 dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-700 shadow-xl flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-surface-200 dark:border-surface-800 flex items-center justify-between bg-white dark:bg-surface-950">
+              <h3 className="font-semibold text-surface-800 dark:text-surface-200">
+                {t('webImportedSourcesTitle')} ({webItems.length})
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsSourcesModalOpen(false)}
+                className="p-1.5 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg text-surface-500 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {webItems.map((item) => (
+                <div
+                  key={item.key}
+                  className="group flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700"
+                >
+                  {item.favicon ? (
+                    <img src={item.favicon} alt="" className="w-5 h-5 rounded-sm shrink-0" loading="lazy" />
+                  ) : (
+                    <div className="w-5 h-5 rounded-sm bg-emerald-500/25 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-surface-700 dark:text-surface-300 truncate block">
+                      {item.title}
+                    </span>
+                    <span className="text-xs text-surface-500 dark:text-surface-400 truncate block">
+                      {item.subtitle}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={item.action}
+                    className="p-1.5 rounded-lg text-surface-500 hover:text-primary-500 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
