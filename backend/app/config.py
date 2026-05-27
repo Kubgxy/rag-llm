@@ -49,6 +49,7 @@ class Settings(BaseSettings):
 
     # Query settings
     SIMILARITY_TOP_K: int = 3
+    CPU_SIMILARITY_TOP_K: int = 2
 
     class Config:
         env_file = ".env"
