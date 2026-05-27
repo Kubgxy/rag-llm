@@ -24,6 +24,7 @@ class VectorStoreManager:
         
         # In-memory store for BM25 Retrievers
         self.bm25_retrievers = {}
+        self.bm25_nodes = {}
         # Path for persisting BM25 retrievers
         self.bm25_persist_dir = os.path.join(os.path.dirname(settings.CHROMA_PATH), "bm25")
         os.makedirs(self.bm25_persist_dir, exist_ok=True)
@@ -84,6 +85,48 @@ class VectorStoreManager:
             print(f"💾 [BM25] บันทึก BM25 index ล่าสุดของ session {session_id} เรียบร้อย")
         except Exception as e:
             print(f"⚠️ [BM25] ไม่สามารถบันทึกเป็นไฟล์ได้ แต่เก็บไว้ใน RAM สำเร็จ: {e}")
+
+    def _save_bm25_nodes(self, session_id: str, nodes):
+        persist_path = os.path.join(self.bm25_persist_dir, f"bm25_nodes_{session_id}.pkl")
+        with open(persist_path, "wb") as f:
+            pickle.dump(nodes, f)
+
+    def _load_bm25_nodes(self, session_id: str):
+        if session_id in self.bm25_nodes:
+            return self.bm25_nodes[session_id]
+
+        persist_path = os.path.join(self.bm25_persist_dir, f"bm25_nodes_{session_id}.pkl")
+        if not os.path.exists(persist_path):
+            return []
+
+        try:
+            with open(persist_path, "rb") as f:
+                nodes = pickle.load(f)
+            self.bm25_nodes[session_id] = nodes
+            return nodes
+        except Exception as e:
+            print(f"⚠️ [BM25] โหลด bm25 nodes ไม่สำเร็จ: {e}")
+            return []
+
+    def extend_bm25_nodes(self, session_id: str, new_nodes):
+        """
+        รวม nodes เดิม + ใหม่ แล้วสร้าง BM25 retriever ใหม่
+        เพื่อให้ค้นได้ทั้งไฟล์ PDF และข้อมูลเว็บที่ import เพิ่มเข้ามา
+        """
+        if not new_nodes:
+            return
+
+        old_nodes = self._load_bm25_nodes(session_id)
+        merged_nodes = [*old_nodes, *new_nodes]
+        self.bm25_nodes[session_id] = merged_nodes
+        self._save_bm25_nodes(session_id, merged_nodes)
+
+        bm25_retriever = BM25Retriever.from_defaults(
+            nodes=merged_nodes,
+            similarity_top_k=2,
+            tokenizer=thai_tokenizer,
+        )
+        self.save_bm25_retriever(session_id, bm25_retriever)
 
     def get_bm25_retriever(self, session_id: str):
         """ดึง BM25 Retriever สำหรับ session"""

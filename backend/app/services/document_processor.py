@@ -3,13 +3,13 @@ import json
 import re
 import asyncio
 from typing import Dict, List, Optional
-from llama_index.retrievers.bm25 import BM25Retriever
-from app.services.vector_store import vector_store_service, thai_tokenizer
+from app.services.vector_store import vector_store_service
 from llama_index.core import Document, VectorStoreIndex
+from llama_index.core.node_parser import SentenceSplitter
 from app.config import settings
-from app.utils.ocr import extract_text_by_page, extract_text_from_pdf
+from app.utils.ocr import extract_text_by_page
 from app.services.llm_service import llm_service
-from app.schemas.models import DocumentStatus, Mindmap, MindmapNode
+from app.schemas.models import DocumentStatus
 
 
 # Global dictionary เก็บสถานะการประมวลผล
@@ -29,7 +29,7 @@ class DocumentProcessorService:
         ประมวลผลเอกสารแบบ Background Task
         - สกัดข้อความ
         - สร้าง Vector Index
-        - สร้าง Summary และ Mindmap
+        - สร้าง Summary
 
         Args:
             file_path: Path ของไฟล์
@@ -63,22 +63,17 @@ class DocumentProcessorService:
             # 2. สร้าง Vector Index และ BM25
             print(f"🔍 [Task] กำลังสร้าง Vector Index และ BM25 ({len(docs)} chunks/pages)...")
             storage_context = vector_store_service.get_session_storage(session_id)
-            index = VectorStoreIndex.from_documents(
-                docs,
+            splitter = SentenceSplitter(chunk_size=1500, chunk_overlap=150)
+            nodes = splitter.get_nodes_from_documents(docs)
+            index = VectorStoreIndex(
+                nodes=nodes,
                 storage_context=storage_context
             )
             
             # 2.5 สร้าง BM25 Retriever สำหรับ Keyword Search แบบภาษาไทย
             try:
-                # เนื่องจาก ChromaDB ไม่ได้เก็บ Node ไว้ใน in-memory docstore หลัก
-                # เราจึงสามารถนำตัวแปร docs (หน้าเอกสาร) ที่เราสร้างไว้มาใส่เป็น Node สำหรับ BM25 ได้เลย
-                if docs:
-                    bm25_retriever = BM25Retriever.from_defaults(
-                        nodes=docs,
-                        similarity_top_k=2,
-                        tokenizer=thai_tokenizer,
-                    )
-                    vector_store_service.save_bm25_retriever(session_id, bm25_retriever)
+                if nodes:
+                    vector_store_service.extend_bm25_nodes(session_id, nodes)
                     print(f"✅ [BM25] สร้าง Keyword Index สำหรับ {filename} เรียบร้อย")
                 else:
                     print(f"⚠️ [BM25] เอกสารว่างเปล่า หรือไม่มีเนื้อหาเพียงพอสำหรับสร้าง BM25")
@@ -88,7 +83,7 @@ class DocumentProcessorService:
             # 3. เปลี่ยนสถานะเป็น ready_for_chat (ช่วงนี้สามารถเริ่มแชทได้แล้ว)
             doc_status[task_id] = {
                 "status": DocumentStatus.READY_FOR_CHAT,
-                "summary": "⏳ AI กำลังสรุปเนื้อหาและสร้าง Mindmap อยู่เบื้องหลัง คุณสามารถเริ่มพิมพ์ถามตอบได้เลย...",
+                "summary": "⏳ AI กำลังสรุปเนื้อหาอยู่เบื้องหลัง คุณสามารถเริ่มพิมพ์ถามตอบได้เลย...",
                 "mindmap": {"nodes": [], "edges": []}
             }
             print(f"✅ [Index] {filename} สร้าง Vector เสร็จแล้ว (เริ่มแชทได้เลย)!")
@@ -97,15 +92,11 @@ class DocumentProcessorService:
             print(f"⏳ [LLM] กำลังสร้าง Summary...")
             summary = asyncio.run(self._generate_summary(index))
 
-            # 5. สร้าง Mindmap (Background)
-            print(f"⏳ [LLM] กำลังสร้าง Mindmap...")
-            mindmap = asyncio.run(self._generate_mindmap(index))
-
-            # 6. อัพเดทสถานะเป็น completed
+            # 5. อัพเดทสถานะเป็น completed
             doc_status[task_id] = {
                 "status": DocumentStatus.COMPLETED,
                 "summary": summary,
-                "mindmap": mindmap
+                "mindmap": {"nodes": [], "edges": []}
             }
             print(f"🎉 [Task] ประมวลผล {filename} เสร็จสิ้น 100%!\n")
 
@@ -143,8 +134,45 @@ class DocumentProcessorService:
     async def _generate_mindmap(self, index: VectorStoreIndex) -> Dict:
         """สร้าง Mindmap JSON พร้อม hierarchy structure"""
         try:
-            # Request structured markdown hierarchy for expandable mindmap
-            prompt = """จงอ่านเอกสารนี้แล้วสร้าง Mind Map แบบ Hierarchical Tree โดยใช้รูปแบบ Markdown
+            prompt = self.build_mindmap_prompt()
+            llm = llm_service.get_llm(settings.DEFAULT_LLM_MODEL)
+            query_engine = index.as_query_engine(llm=llm, similarity_top_k=3)
+
+            try:
+                response = await asyncio.to_thread(query_engine.query, prompt)
+            except Exception as e:
+                if llm_service.fallback_to_cpu_if_needed(e):
+                    llm = llm_service.get_llm(settings.DEFAULT_LLM_MODEL)
+                    query_engine = index.as_query_engine(llm=llm, similarity_top_k=3)
+                    response = await asyncio.to_thread(query_engine.query, prompt)
+                else:
+                    raise
+
+            hierarchy_text = str(response)
+
+            # Parse markdown hierarchy เป็น tree structure
+            mindmap = self.parse_mindmap_markdown(hierarchy_text)
+            print(f"✅ [Mindmap] สร้าง hierarchy สำเร็จ ({len(mindmap['nodes'])} nodes)")
+            return mindmap
+
+        except Exception as e:
+            print(f"⚠️ [Mindmap Error] {str(e)}")
+            return {
+                "nodes": [
+                    {
+                        "id": "1",
+                        "label": "หัวข้อหลัก",
+                        "parentId": None,
+                        "level": 0,
+                        "type": "root"
+                    }
+                ],
+                "edges": []
+            }
+
+    def build_mindmap_prompt(self, language: str = "th", user_goal: Optional[str] = None) -> str:
+        """สร้าง prompt สำหรับให้ LLM สร้าง Mindmap แบบ markdown hierarchy"""
+        base_prompt = """จงอ่านเอกสารนี้แล้วสร้าง Mind Map แบบ Hierarchical Tree โดยใช้รูปแบบ Markdown
 
 รูปแบบ:
 - `#` หัวข้อหลักสุด (Root) - 1 อันเท่านั้น - ใช้ชื่อเอกสารหรือหัวข้อใหญ่ที่สุด
@@ -169,40 +197,14 @@ class DocumentProcessorService:
 #### รายละเอียด 2.1.1
 
 เนื้อหาเอกสาร:"""
-            llm = llm_service.get_llm(settings.DEFAULT_LLM_MODEL)
-            query_engine = index.as_query_engine(llm=llm, similarity_top_k=3)
 
-            try:
-                response = await asyncio.to_thread(query_engine.query, prompt)
-            except Exception as e:
-                if llm_service.fallback_to_cpu_if_needed(e):
-                    llm = llm_service.get_llm(settings.DEFAULT_LLM_MODEL)
-                    query_engine = index.as_query_engine(llm=llm, similarity_top_k=3)
-                    response = await asyncio.to_thread(query_engine.query, prompt)
-                else:
-                    raise
+        lang_instruction = "ตอบเป็นภาษาไทย" if language.lower() == "th" else "ตอบเป็นภาษาอังกฤษ"
+        goal_text = f"\nเป้าหมายเพิ่มเติมจากผู้ใช้: {user_goal.strip()}" if user_goal and user_goal.strip() else ""
+        return f"{base_prompt}\n{lang_instruction}{goal_text}"
 
-            hierarchy_text = str(response)
-
-            # Parse markdown hierarchy เป็น tree structure
-            mindmap = self._parse_markdown_hierarchy(hierarchy_text)
-            print(f"✅ [Mindmap] สร้าง hierarchy สำเร็จ ({len(mindmap['nodes'])} nodes)")
-            return mindmap
-
-        except Exception as e:
-            print(f"⚠️ [Mindmap Error] {str(e)}")
-            return {
-                "nodes": [
-                    {
-                        "id": "1",
-                        "label": "หัวข้อหลัก",
-                        "parentId": None,
-                        "level": 0,
-                        "type": "root"
-                    }
-                ],
-                "edges": []
-            }
+    def parse_mindmap_markdown(self, markdown_text: str) -> Dict:
+        """แปลง markdown hierarchy เป็นโครงสร้าง Mindmap JSON"""
+        return self._parse_markdown_hierarchy(markdown_text)
 
     def _parse_markdown_hierarchy(self, markdown_text: str) -> Dict:
         """Parse markdown hierarchy (# ## ###) into tree structure with parent-child relationships"""
@@ -294,6 +296,66 @@ class DocumentProcessorService:
             "summary": "",
             "mindmap": {"nodes": [], "edges": []}
         })
+
+    def import_web_sources(self, session_id: str, sources: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        """
+        นำ raw_content จากแหล่งข้อมูลเว็บเข้าสู่ RAG pipeline เดิม
+        - split เป็น chunks
+        - ใส่ metadata source/url
+        - ทำ embedding และบันทึกลง ChromaDB ของ session เดิม
+        """
+        if not sources:
+            return []
+
+        docs: List[Document] = []
+        imported_sources: List[Dict[str, str]] = []
+        for item in sources:
+            raw_content = str(item.get("raw_content", "")).strip()
+            if not raw_content:
+                continue
+
+            title = str(item.get("title", "")).strip() or str(item.get("url", "")).strip()
+            url = str(item.get("url", "")).strip()
+            source = str(item.get("source", "")).strip() or title
+            snippet = str(item.get("snippet", "")).strip()
+
+            docs.append(
+                Document(
+                    text=raw_content,
+                    metadata={
+                        "file_name": source,
+                        "page_label": "web",
+                        "session_id": session_id,
+                        "source_type": "web",
+                        "source": source,
+                        "url": url,
+                        "title": title,
+                        "snippet": snippet,
+                    },
+                )
+            )
+            imported_sources.append({
+                "title": title,
+                "url": url,
+                "snippet": snippet,
+                "source": source,
+            })
+
+        if not docs:
+            return []
+
+        storage_context = vector_store_service.get_session_storage(session_id)
+        splitter = SentenceSplitter(chunk_size=30   00, chunk_overlap=150)
+        nodes = splitter.get_nodes_from_documents(docs)
+        if not nodes:
+            return []
+
+        VectorStoreIndex(
+            nodes=nodes,
+            storage_context=storage_context,
+        )
+        vector_store_service.extend_bm25_nodes(session_id, nodes)
+        return imported_sources
 
 
 # Singleton instance

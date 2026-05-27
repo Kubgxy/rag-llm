@@ -252,7 +252,12 @@ export function CompareLayout({
                                             onClick={(e) => {
                                               e.preventDefault()
                                               if (data.file) {
-                                                setPreviewPdf(data.file, firstPage)
+                                                const cite = msg.responseA.citations?.find(c => c.file_name === data.file)
+                                                if (cite && cite.url) {
+                                                  window.open(cite.url, '_blank', 'noopener,noreferrer')
+                                                } else {
+                                                  setPreviewPdf(data.file, firstPage)
+                                                }
                                               }
                                             }}
                                             title={data.original?.replace(/[\[\]]/g, '')}
@@ -281,14 +286,27 @@ export function CompareLayout({
                                   </div>
                                   <div className="flex flex-wrap gap-2">
                                     {msg.responseA.citations.map((cite, idx) => (
-                                      <button
-                                        key={idx}
-                                        onClick={() => setPreviewPdf(cite.file_name, cite.page_label)}
-                                        className="text-xs bg-surface-200 hover:bg-surface-300 dark:bg-surface-700 dark:hover:bg-surface-600 px-2 py-1 rounded-md text-surface-700 dark:text-surface-300 cursor-pointer transition-colors border-none text-left"
-                                        title={cite.text_snippet ? cite.text_snippet.trim() : ''}
-                                      >
-                                        {cite.file_name} <span className="opacity-60">({t('citationPageLabel')} {cite.page_label})</span>
-                                      </button>
+                                      cite.url ? (
+                                        <a
+                                          key={idx}
+                                          href={cite.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-xs bg-surface-200 hover:bg-surface-300 dark:bg-surface-700 dark:hover:bg-surface-600 px-2 py-1 rounded-md text-surface-700 dark:text-surface-300 cursor-pointer transition-colors border-none text-left"
+                                          title={cite.text_snippet ? cite.text_snippet.trim() : ''}
+                                        >
+                                          {cite.file_name} <span className="opacity-60">(web)</span>
+                                        </a>
+                                      ) : (
+                                        <button
+                                          key={idx}
+                                          onClick={() => setPreviewPdf(cite.file_name, cite.page_label)}
+                                          className="text-xs bg-surface-200 hover:bg-surface-300 dark:bg-surface-700 dark:hover:bg-surface-600 px-2 py-1 rounded-md text-surface-700 dark:text-surface-300 cursor-pointer transition-colors border-none text-left"
+                                          title={cite.text_snippet ? cite.text_snippet.trim() : ''}
+                                        >
+                                          {cite.file_name} <span className="opacity-60">({t('citationPageLabel')} {cite.page_label})</span>
+                                        </button>
+                                      )
                                     ))}
                                   </div>
                                 </div>
@@ -361,7 +379,12 @@ export function CompareLayout({
                                             onClick={(e) => {
                                               e.preventDefault()
                                               if (data.file) {
-                                                setPreviewPdf(data.file, firstPage)
+                                                const cite = msg.responseB.citations?.find(c => c.file_name === data.file)
+                                                if (cite && cite.url) {
+                                                  window.open(cite.url, '_blank', 'noopener,noreferrer')
+                                                } else {
+                                                  setPreviewPdf(data.file, firstPage)
+                                                }
                                               }
                                             }}
                                             title={data.original?.replace(/[\[\]]/g, '')}
@@ -390,14 +413,27 @@ export function CompareLayout({
                                   </div>
                                   <div className="flex flex-wrap gap-2">
                                     {msg.responseB.citations.map((cite, idx) => (
-                                      <button
-                                        key={idx}
-                                        onClick={() => setPreviewPdf(cite.file_name, cite.page_label)}
-                                        className="text-xs bg-surface-200 hover:bg-surface-300 dark:bg-surface-700 dark:hover:bg-surface-600 px-2 py-1 rounded-md text-surface-700 dark:text-surface-300 cursor-pointer transition-colors border-none text-left"
-                                        title={cite.text_snippet ? cite.text_snippet.trim() : ''}
-                                      >
-                                        {cite.file_name} <span className="opacity-60">({t('citationPageLabel')} {cite.page_label})</span>
-                                      </button>
+                                      cite.url ? (
+                                        <a
+                                          key={idx}
+                                          href={cite.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-xs bg-surface-200 hover:bg-surface-300 dark:bg-surface-700 dark:hover:bg-surface-600 px-2 py-1 rounded-md text-surface-700 dark:text-surface-300 cursor-pointer transition-colors border-none text-left"
+                                          title={cite.text_snippet ? cite.text_snippet.trim() : ''}
+                                        >
+                                          {cite.file_name} <span className="opacity-60">(web)</span>
+                                        </a>
+                                      ) : (
+                                        <button
+                                          key={idx}
+                                          onClick={() => setPreviewPdf(cite.file_name, cite.page_label)}
+                                          className="text-xs bg-surface-200 hover:bg-surface-300 dark:bg-surface-700 dark:hover:bg-surface-600 px-2 py-1 rounded-md text-surface-700 dark:text-surface-300 cursor-pointer transition-colors border-none text-left"
+                                          title={cite.text_snippet ? cite.text_snippet.trim() : ''}
+                                        >
+                                          {cite.file_name} <span className="opacity-60">({t('citationPageLabel')} {cite.page_label})</span>
+                                        </button>
+                                      )
                                     ))}
                                   </div>
                                 </div>

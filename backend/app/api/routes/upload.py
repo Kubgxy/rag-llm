@@ -93,7 +93,7 @@ async def get_document_status(session_id: str, filename: str):
         filename: ชื่อไฟล์
 
     Returns:
-        สถานะการประมวลผล พร้อม summary และ mindmap
+        สถานะการประมวลผล พร้อม summary
     """
     status = document_processor.get_document_status(session_id, filename)
     return status

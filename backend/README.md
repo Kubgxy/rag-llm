@@ -188,7 +188,38 @@ Content-Type: application/json
 GET /health
 ```
 
-#### 5. Runtime Status
+#### 5. Web Search Preview
+
+```http
+POST /web-search/preview
+Content-Type: application/json
+
+{
+  "query": "ข่าวประเทศไทยล่าสุดวันนี้",
+  "session_id": "session_123",
+  "search_depth": "basic",
+  "max_results": 10
+}
+```
+
+> ต้องตั้งค่า `TAVILY_API_KEY` ในไฟล์ `.env` ก่อนใช้งาน
+
+#### 6. Import Selected Web Sources to RAG
+
+```http
+POST /web-search/import
+Content-Type: application/json
+
+{
+  "session_id": "session_123",
+  "urls": [
+    "https://example.com/news-1",
+    "https://example.com/news-2"
+  ]
+}
+```
+
+#### 7. Runtime Status
 
 ```http
 GET /runtime/status
@@ -202,7 +233,7 @@ Response:
 }
 ```
 
-#### 6. Update Runtime (Global)
+#### 8. Update Runtime (Global)
 
 ```http
 PUT /runtime/device

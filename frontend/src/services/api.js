@@ -135,9 +135,48 @@ export const suggestTitle = async (query, modelName = 'typhoon-2.5') => {
 }
 
 /**
+ * Search web sources with Tavily and return preview list
+ * POST /web-search/preview
+ * @param {string} query
+ * @param {'basic'|'advanced'} searchDepth
+ * @param {'none'|'basic'|'advanced'} includeAnswer
+ * @param {number} maxResults
+ */
+export const searchWebPreview = async (
+  query,
+  sessionId,
+  searchDepth = 'basic',
+  includeAnswer = 'none',
+  maxResults = 10
+) => {
+  const { data } = await api.post('/web-search/preview', {
+    query,
+    session_id: sessionId,
+    search_depth: searchDepth,
+    include_answer: includeAnswer,
+    max_results: maxResults,
+  })
+  return data
+}
+
+/**
+ * Import selected web sources into RAG vector store
+ * POST /web-search/import
+ * @param {string[]} urls
+ * @param {string} sessionId
+ */
+export const importWebSources = async (urls, sessionId) => {
+  const { data } = await api.post('/web-search/import', {
+    session_id: sessionId,
+    urls,
+  })
+  return data
+}
+
+/**
  * Generate specialized knowledge action result using dedicated action model
  * POST /actions/generate
- * @param {'diagram'|'chart'|'slides'|'infographic'} actionType
+ * @param {'mindmap'|'chart'|'slides'|'infographic'} actionType
  * @param {string} sessionId
  * @param {{ userGoal?: string, language?: 'th'|'en', modelName?: string }} options
  */

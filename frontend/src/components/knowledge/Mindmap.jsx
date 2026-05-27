@@ -89,9 +89,11 @@ function calculateRadialPositions(visibleNodes, expandedNodes, allNodes) {
   return positions
 }
 
-export default function Mindmap() {
+export default function Mindmap({ nodes: inputNodes = null, edges: inputEdges = null }) {
   const { mindmapNodes: storeNodes, mindmapEdges: storeEdges } = useDocumentStore()
   const { t } = useLanguageStore()
+  const sourceNodes = Array.isArray(inputNodes) ? inputNodes : storeNodes
+  const sourceEdges = Array.isArray(inputEdges) ? inputEdges : storeEdges
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [expandedNodes, setExpandedNodes] = useState(new Set())
   const prevVisibleIdsRef = useRef(new Set())
@@ -109,13 +111,13 @@ export default function Mindmap() {
 
   // Initialize: expand root node automatically
   useEffect(() => {
-    if (storeNodes.length > 0) {
-      const rootNode = storeNodes.find(n => n.level === 0)
+    if (sourceNodes.length > 0) {
+      const rootNode = sourceNodes.find(n => n.level === 0)
       if (rootNode) {
         setExpandedNodes(new Set([rootNode.id]))
       }
     }
-  }, [storeNodes])
+  }, [sourceNodes])
 
   // Toggle node expansion
   const toggleNode = useCallback((nodeId) => {
@@ -125,7 +127,7 @@ export default function Mindmap() {
         newSet.delete(nodeId)
         // Also collapse all descendants
         const removeDescendants = (id) => {
-          storeNodes.forEach(node => {
+          sourceNodes.forEach(node => {
             if (node.parentId === id) {
               newSet.delete(node.id)
               removeDescendants(node.id)
@@ -138,35 +140,35 @@ export default function Mindmap() {
       }
       return newSet
     })
-  }, [storeNodes])
+  }, [sourceNodes])
 
   // Calculate visible nodes (only show children of expanded nodes)
   const visibleNodes = useMemo(() => {
     const visible = []
     const addNodeAndChildren = (nodeId) => {
-      const node = storeNodes.find(n => n.id === nodeId)
+      const node = sourceNodes.find(n => n.id === nodeId)
       if (!node) return
 
       visible.push(node)
 
       if (expandedNodes.has(nodeId)) {
-        const children = storeNodes.filter(n => n.parentId === nodeId)
+        const children = sourceNodes.filter(n => n.parentId === nodeId)
         children.forEach(child => addNodeAndChildren(child.id))
       }
     }
 
-    const rootNode = storeNodes.find(n => n.level === 0)
+    const rootNode = sourceNodes.find(n => n.level === 0)
     if (rootNode) {
       addNodeAndChildren(rootNode.id)
     }
 
     return visible
-  }, [storeNodes, expandedNodes])
+  }, [sourceNodes, expandedNodes])
 
   // Calculate positions for visible nodes
   const positions = useMemo(
-    () => calculateRadialPositions(visibleNodes, expandedNodes, storeNodes),
-    [visibleNodes, expandedNodes, storeNodes]
+    () => calculateRadialPositions(visibleNodes, expandedNodes, sourceNodes),
+    [visibleNodes, expandedNodes, sourceNodes]
   )
 
   // Track entering nodes for animation with stagger (use ref to avoid re-renders)
@@ -236,7 +238,7 @@ export default function Mindmap() {
         2: isDarkMode ? '0 2px 12px rgba(0,0,0,0.2)' : '0 2px 12px rgba(0,0,0,0.05)',
       }
 
-      const hasChildren = storeNodes.some(n => n.parentId === node.id)
+      const hasChildren = sourceNodes.some(n => n.parentId === node.id)
       const isExpanded = expandedNodes.has(node.id)
       const isEntering = enteringNodesMap.has(node.id)
       const staggerDelay = staggerDelaysRef.current.get(node.id) || 0
@@ -278,13 +280,13 @@ export default function Mindmap() {
         },
       }
     })
-  }, [visibleNodes, positions, isDarkMode, expandedNodes, storeNodes, enteringNodesMap])
+  }, [visibleNodes, positions, isDarkMode, expandedNodes, sourceNodes, enteringNodesMap])
 
   // Create edges only for visible nodes
   const initialEdges = useMemo(() => {
     const visibleNodeIds = new Set(visibleNodes.map(n => n.id))
 
-    return storeEdges
+    return sourceEdges
       .filter(edge => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target))
       .map((edge, i) => ({
         id: edge.id || `edge-${i}`,
@@ -297,7 +299,7 @@ export default function Mindmap() {
           stroke: isDarkMode ? 'rgba(200, 200, 220, 0.3)' : 'rgba(100, 100, 120, 0.2)',
         },
       }))
-  }, [visibleNodes, storeEdges, isDarkMode])
+  }, [visibleNodes, sourceEdges, isDarkMode])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -313,13 +315,13 @@ export default function Mindmap() {
 
   // Handle node click
   const onNodeClick = useCallback((event, node) => {
-    const hasChildren = storeNodes.some(n => n.parentId === node.id)
+    const hasChildren = sourceNodes.some(n => n.parentId === node.id)
     if (hasChildren) {
       toggleNode(node.id)
     }
-  }, [storeNodes, toggleNode])
+  }, [sourceNodes, toggleNode])
 
-  if (storeNodes.length === 0) {
+  if (sourceNodes.length === 0) {
     return (
       <p className="text-sm text-surface-500 dark:text-surface-500 italic">
         {t('mindmapNoData')}
