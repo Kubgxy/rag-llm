@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     OLLAMA_HOST: str = "http://localhost:11434"
     DEFAULT_LLM_MODEL: str = "iapp/chinda-qwen3-4b"
     ALTERNATIVE_LLM_MODEL: str = "scb10x/typhoon2.5-qwen3-4b"
-    ACTION_LLM_MODEL: str = "qwen2.5:7b"
+    ACTION_LLM_MODEL: str = "iapp/chinda-qwen3-4b"
     LLM_REQUEST_TIMEOUT: float = 600.0
     LLM_NUM_CTX: int = 4096
     CPU_LLM_NUM_CTX: int = 4096

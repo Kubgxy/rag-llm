@@ -172,35 +172,40 @@ class DocumentProcessorService:
 
     def build_mindmap_prompt(self, language: str = "th", user_goal: Optional[str] = None) -> str:
         """สร้าง prompt สำหรับให้ LLM สร้าง Mindmap แบบ markdown hierarchy"""
-        base_prompt = """จงอ่านเอกสารนี้แล้วสร้าง Mind Map แบบ Hierarchical Tree โดยใช้รูปแบบ Markdown
+        base_prompt = """คุณคือผู้เชี่ยวชาญด้านการจัดระเบียบความคิด (Knowledge Architect)
+จงอ่านเนื้อหาจากเอกสารที่แนบมา แล้วสกัดใจความสำคัญเพื่อสร้าง Mind Map แบบ Hierarchical Tree ด้วยรูปแบบ Markdown
 
-รูปแบบ:
-- `#` หัวข้อหลักสุด (Root) - 1 อันเท่านั้น - ใช้ชื่อเอกสารหรือหัวข้อใหญ่ที่สุด
-- `##` หมวดหมู่หลัก (Main Categories) - 3-5 หมวด - แบ่งตามเนื้อหาหลักๆ
-- `###` หัวข้อย่อยในแต่ละหมวด (Subtopics) - จำกัด 3-7 หัวข้อต่อหมวด
-- `####` รายละเอียดเพิ่มเติม (Details) - ถ้ามี - สำหรับเนื้อหาที่ซับซ้อน
+[โครงสร้าง Markdown ที่บังคับใช้]:
+- `#` หัวข้อหลัก (Root) - มีได้เพียง 1 ข้อเท่านั้น (ชื่อแกนหลักของเรื่อง)
+- `##` หมวดหมู่หลัก (Main Categories) - 3-5 หมวด
+- `###` หัวข้อย่อย (Subtopics) - 3-7 ข้อต่อหมวด
+- `####` รายละเอียด (Details) - ใส่เฉพาะส่วนที่จำเป็นต้องขยายความจริงๆ
 
-เงื่อนไข:
-1. ตอบกลับเป็น Markdown เท่านั้น ห้ามมีคำอธิบายอื่น
-2. ทุกหัวข้อต้องสั้นกระชับ (3-7 คำ)
-3. จัดกลุ่มให้ชัดเจน ไม่ซ้ำซ้อน
-4. เรียงลำดับจากสำคัญไปน้อย
-5. Structure ต้องเหมาะกับการคลิกขยาย/ย่อ (Expandable/Collapsible)
+[กฎเหล็ก]:
+1. ตอบกลับเป็นข้อความ Markdown แบบดิบ (Raw Text) เท่านั้น ห้ามใส่เครื่องหมาย ``` (Code Block) ครอบเด็ดขาด และห้ามมีข้อความอธิบายหรือทักทาย
+2. ข้อความในแต่ละหัวข้อต้องสั้น กระชับ ได้ใจความ (3-7 คำ)
+3. จัดกลุ่มความสัมพันธ์ให้สมเหตุสมผล ไม่ซ้ำซ้อนกัน
+4. เรียงลำดับความสำคัญจากบนลงล่าง และเรียงตรรกะให้เหมาะกับการคลิกขยาย/ย่อ (Expandable/Collapsible)
 
-ตัวอย่าง:
-# ชื่อเอกสาร
-## หมวดที่ 1
-### หัวข้อย่อย 1.1
-### หัวข้อย่อย 1.2
-## หมวดที่ 2
-### หัวข้อย่อย 2.1
-#### รายละเอียด 2.1.1
+[ตัวอย่างผลลัพธ์ที่ถูกต้อง]:
+# ระบบจัดการร้านอาหาร
+## การสั่งอาหาร
+### รับออเดอร์หน้าร้าน
+### รับออเดอร์ออนไลน์
+## การชำระเงิน
+### เงินสด
+### คิวอาร์โค้ด
+#### รองรับทุกธนาคาร
 
-เนื้อหาเอกสาร:"""
+[เนื้อหาเอกสาร]:"""
 
-        lang_instruction = "ตอบเป็นภาษาไทย" if language.lower() == "th" else "ตอบเป็นภาษาอังกฤษ"
-        goal_text = f"\nเป้าหมายเพิ่มเติมจากผู้ใช้: {user_goal.strip()}" if user_goal and user_goal.strip() else ""
-        return f"{base_prompt}\n{lang_instruction}{goal_text}"
+        # ปรับประโยคคำสั่งภาษาให้เด็ดขาดขึ้น
+        lang_instruction = "ภาษาที่ใช้ตอบ: ภาษาไทยเท่านั้น" if language.lower() == "th" else "Response Language: English strictly"
+        
+        goal_text = f"\n[เป้าหมายเพิ่มเติมจากผู้ใช้]: {user_goal.strip()}" if user_goal and user_goal.strip() else ""
+        
+        # เพิ่ม Trigger Phrase ปิดท้าย เพื่อบังคับให้ LLM เริ่มพิมพ์ด้วยเครื่องหมาย # ทันที
+        return f"{base_prompt}\n\n{lang_instruction}{goal_text}\n\n[เริ่มสร้าง Markdown Mind Map ทันทีโดยไม่ต้องเกริ่นนำ]:\n"
 
     def parse_mindmap_markdown(self, markdown_text: str) -> Dict:
         """แปลง markdown hierarchy เป็นโครงสร้าง Mindmap JSON"""
@@ -345,7 +350,7 @@ class DocumentProcessorService:
             return []
 
         storage_context = vector_store_service.get_session_storage(session_id)
-        splitter = SentenceSplitter(chunk_size=30   00, chunk_overlap=150)
+        splitter = SentenceSplitter(chunk_size=3000, chunk_overlap=150)
         nodes = splitter.get_nodes_from_documents(docs)
         if not nodes:
             return []

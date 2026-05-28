@@ -60,10 +60,11 @@ backend/
    ```
 
 3. **ดาวน์โหลดโมเดล LLM**
-   ```bash
-   ollama pull scb10x/typhoon2.5-qwen3-4b
-   ollama pull iapp/chinda-qwen3-4b
-   ```
+```bash
+ollama pull scb10x/typhoon2.5-qwen3-4b
+ollama pull iapp/chinda-qwen3-4b
+ollama pull qwen2.5-coder:7b
+```
 
 ### Python Dependencies
 
@@ -112,6 +113,7 @@ HOST=0.0.0.0
 PORT=8000
 OLLAMA_HOST=http://localhost:11434
 DEFAULT_LLM_MODEL=scb10x/typhoon2.5-qwen3-4b
+ACTION_LLM_MODEL=qwen2.5-coder:7b
 
 # 🔥 สำคัญ: Qdrant Mode
 # - "memory": เก็บข้อมูลใน RAM (แนะนำสำหรับ development, ไม่มีปัญหา lock file)
@@ -252,6 +254,7 @@ Content-Type: application/json
 
 - `EMBEDDING_MODEL`: โมเดล embedding (default: `BAAI/bge-m3`)
 - `DEFAULT_LLM_MODEL`: โมเดล LLM หลัก
+- `ACTION_LLM_MODEL`: โมเดล LLM สำหรับ action (บังคับใช้งานเสมอ)
 - `LLM_RUNTIME_DEVICE`: runtime เริ่มต้นของโมเดล (`cpu` หรือ `gpu`)
 - `OLLAMA_NUM_GPU`: จำนวน GPU ที่ให้ Ollama ใช้ (`-1` = auto, `0` = บังคับ CPU)
 - `QDRANT_MODE`: โหมดการทำงานของ Qdrant

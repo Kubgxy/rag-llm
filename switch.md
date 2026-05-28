@@ -185,6 +185,7 @@ Validation:
 | `OLLAMA_HOST` | `http://localhost:11434` | URL Ollama server | ทุก call ไป Ollama |
 | `DEFAULT_LLM_MODEL` | `iapp/chinda-qwen3-4b` | โมเดลหลัก (รวมใน known models) | warmup fallback / summary |
 | `ALTERNATIVE_LLM_MODEL` | `scb10x/typhoon2.5-qwen3-4b` | โมเดลรอง (รวมใน known models) | warmup fallback |
+| `ACTION_LLM_MODEL` | `qwen2.5-coder:7b` | โมเดลสำหรับ action (บังคับใช้งานเสมอ) | action generation |
 
 หมายเหตุเชิง implementation:
 

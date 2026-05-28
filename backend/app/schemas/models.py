@@ -128,7 +128,10 @@ class CompareResponse(BaseModel):
 class ActionGenerateRequest(BaseModel):
     session_id: str = Field(..., description="Session ID สำหรับแยกชุดเอกสาร")
     action_type: ActionType = Field(..., description="ประเภท action ที่ต้องการสร้าง")
-    model_name: Optional[str] = Field(default=None, description="โมเดลสำหรับ action โดยเฉพาะ (optional)")
+    model_name: Optional[str] = Field(
+        default=None,
+        description="โมเดลสำหรับ action (ถูก ignore; backend ใช้ ACTION_LLM_MODEL เสมอ)",
+    )
     user_goal: Optional[str] = Field(default=None, description="เป้าหมายเพิ่มเติมจากผู้ใช้")
     language: str = Field(default="th", description="ภาษา output (th/en)")
 
