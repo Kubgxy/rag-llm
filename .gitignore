@@ -76,3 +76,7 @@ htmlcov/
 .coverage
 .coverage.*
 .eslintcache
+
+# Agent Kit
+.agents/
+.agent/
