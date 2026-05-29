@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     CPU_LLM_NUM_CTX: int = 8192
     CPU_LLM_NUM_PREDICT: int = 512
     LLM_REQUEST_TIMEOUT: float = 600.0
+    
 
     # Embedding settings
     EMBEDDING_MODEL: str = "BAAI/bge-m3"
