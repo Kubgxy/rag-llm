@@ -238,12 +238,19 @@ export const useDocumentStore = create(
 
   addActionResult: (result) =>
     set((state) => {
+      const t = useLanguageStore.getState().t
       const item = {
         id: result.id || `action-${Date.now()}-${Math.random()}`,
-        actionType: result.actionType,
-        title: result.title,
+        actionType: result.actionType || result.action_type,
+        title: result.title || (
+          (result.action_type === 'slides' || result.actionType === 'slides') ? t('knowledgeActionSlides') :
+          (result.action_type === 'infographic' || result.actionType === 'infographic') ? t('knowledgeActionInfographic') :
+          (result.action_type === 'mindmap' || result.actionType === 'mindmap') ? t('knowledgeActionMindmap') :
+          (result.action_type === 'chart' || result.actionType === 'chart') ? t('knowledgeActionChart') : 
+          (result.actionType || result.action_type)
+        ),
         answer: result.answer,
-        modelName: result.modelName || null,
+        modelName: result.modelName || result.model_name || null,
         citations: result.citations || [],
         createdAt: result.created_at || result.createdAt || Date.now(),
       }
@@ -257,11 +264,13 @@ export const useDocumentStore = create(
     set((state) => {
       const t = useLanguageStore.getState().t
       const items = results.map((result) => {
-        let title = result.action_type
-        if (result.action_type === 'slides') title = t('knowledgeActionSlides')
-        else if (result.action_type === 'infographic') title = t('knowledgeActionInfographic')
-        else if (result.action_type === 'mindmap') title = t('knowledgeActionMindmap')
-        else if (result.action_type === 'chart') title = t('knowledgeActionChart')
+        let title = result.title || result.action_type
+        if (!result.title) {
+          if (result.action_type === 'slides') title = t('knowledgeActionSlides')
+          else if (result.action_type === 'infographic') title = t('knowledgeActionInfographic')
+          else if (result.action_type === 'mindmap') title = t('knowledgeActionMindmap')
+          else if (result.action_type === 'chart') title = t('knowledgeActionChart')
+        }
 
         return {
           id: result.id || `action-${result.action_type}-${Date.now()}-${Math.random()}`,

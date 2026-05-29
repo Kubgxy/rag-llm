@@ -208,6 +208,14 @@ export const generateKnowledgeAction = async (actionType, sessionId, options = {
     payload.model_name = options.modelName
   }
 
+  if (options.selectedFiles && Array.isArray(options.selectedFiles) && options.selectedFiles.length > 0) {
+    payload.selected_files = options.selectedFiles
+  }
+
+  if (options.detailLevel) {
+    payload.detail_level = options.detailLevel
+  }
+
   const { data } = await api.post('/actions/generate', payload)
   return data
 }

@@ -169,18 +169,48 @@ export default function ActionResults() {
             <ActionDetailRenderer actionType={selected.actionType} answer={selected.answer} />
           </div>
 
-          {/* {Array.isArray(selected.citations) && selected.citations.length > 0 && !isFullscreen && (
-            <div className="flex flex-wrap gap-2 pt-2">
-              {selected.citations.map((cite, idx) => (
-                <span
-                  key={`cite-${idx}`}
-                  className="text-[11px] px-2 py-1 rounded-md bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-300"
-                >
-                  {cite.file_name} ({t('citationPageLabel')} {cite.page_label})
-                </span>
-              ))}
+          {Array.isArray(selected.citations) && selected.citations.length > 0 && !isFullscreen && (
+            <div className="mt-4 pt-4 border-t border-surface-200 dark:border-surface-800/80 w-full shrink-0">
+              <h4 className="text-xs font-bold text-surface-600 dark:text-surface-400 mb-2.5 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-primary-500" />
+                {lang === 'th' ? '📌 แหล่งอ้างอิงที่ใช้' : '📌 Sources & References'}
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {selected.citations.map((cite, idx) => {
+                  const isWeb = cite.source_type === 'web' || cite.url;
+                  return (
+                    <a
+                      key={`cite-${idx}`}
+                      href={isWeb ? cite.url : undefined}
+                      target={isWeb ? "_blank" : undefined}
+                      rel={isWeb ? "noopener noreferrer" : undefined}
+                      className={
+                        `inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-lg border transition-all ` +
+                        `${isWeb 
+                          ? 'border-sky-200 dark:border-sky-900 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 hover:bg-sky-100 hover:border-sky-300' 
+                          : 'border-surface-200 dark:border-surface-800 bg-surface-100 dark:bg-surface-800/60 text-surface-700 dark:text-surface-300'
+                        }`
+                      }
+                      title={cite.text_snippet || undefined}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+                      <span className="max-w-[200px] truncate font-medium">{cite.file_name || cite.url}</span>
+                      {!isWeb && cite.page_label && (
+                        <span className="text-[10px] opacity-75">
+                          ({t('citationPageLabel')} {cite.page_label})
+                        </span>
+                      )}
+                      {isWeb && (
+                        <span className="text-[9px] uppercase font-bold tracking-wider px-1 bg-sky-200/50 dark:bg-sky-900/60 rounded shrink-0">
+                          Web
+                        </span>
+                      )}
+                    </a>
+                  )
+                })}
+              </div>
             </div>
-          )} */}
+          )}
         </div>
       </div>
     </div>

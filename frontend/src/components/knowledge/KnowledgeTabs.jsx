@@ -13,6 +13,29 @@ export default function KnowledgeTabs() {
   const { t, lang } = useLanguageStore()
   const { addToast } = useToast()
   const [actionLoading, setActionLoading] = useState(null)
+  
+  // Modal states for multi-document selection & custom goals
+  const [selectedAction, setSelectedAction] = useState(null)
+  const [selectedFilesForAction, setSelectedFilesForAction] = useState([])
+  const [selectedDetailLevel, setSelectedDetailLevel] = useState('concise')
+
+  // Fetch document lists from Zustand store
+  const documents = useDocumentStore((state) => state.documents || [])
+  const importedWebSources = useDocumentStore((state) => state.importedWebSources || [])
+
+  // Create unified selectable files list
+  const availableFiles = [
+    ...documents.map((doc) => ({
+      name: doc.name,
+      type: 'pdf',
+      label: doc.name,
+    })),
+    ...importedWebSources.map((web) => ({
+      name: web.source || web.title || web.url,
+      type: 'web',
+      label: web.title || web.source || web.url,
+    })),
+  ]
 
   // Handle persisted legacy tab value after mindmap tab removal.
   useEffect(() => {
@@ -72,7 +95,7 @@ export default function KnowledgeTabs() {
     },
   ]
 
-  const handleActionClick = async (action) => {
+  const handleActionClick = async (action, selectedFiles = [], detailLevel = 'concise') => {
     if (actionLoading) return
 
     const sessionId = useSessionStore.getState().getSessionId()
@@ -82,15 +105,25 @@ export default function KnowledgeTabs() {
     }
 
     setActionLoading(action.id)
+    setSelectedAction(null) // ปิด Modal หลังจากกดตกลง
 
     try {
-      const data = await generateKnowledgeAction(action.id, sessionId, {
+      const options = {
         language: lang,
-      })
+        detailLevel: detailLevel,
+      }
+      
+      // ส่งเฉพาะไฟล์ที่ผู้ใช้เลือก (ถ้ามี)
+      if (selectedFiles && selectedFiles.length > 0) {
+        options.selectedFiles = selectedFiles
+      }
+
+      const data = await generateKnowledgeAction(action.id, sessionId, options)
 
       addActionResult({
+        id: data.id,
         actionType: action.id,
-        title: action.label,
+        title: data.title || action.label,
         answer: data.answer,
         modelName: data.model_name,
         citations: data.citations || [],
@@ -165,7 +198,17 @@ export default function KnowledgeTabs() {
               return (
                 <button
                   key={action.id}
-                  onClick={() => handleActionClick(action)}
+                  onClick={() => {
+                    // หากผู้ใช้เลือกทำ Presentation Slides หรือมีเอกสารมากกว่า 1 รายการ ให้เปิดหน้าต่างตั้งค่าก่อน
+                    if (action.id === 'slides' || availableFiles.length > 1) {
+                      setSelectedAction(action)
+                      setSelectedFilesForAction([])
+                      setSelectedDetailLevel('concise')
+                    } else {
+                      // หากทำแอคชันอื่น และมีเพียง 1 หรือ 0 เอกสาร ให้รันด่วนปกติ
+                      handleActionClick(action, [], 'concise')
+                    }
+                  }}
                   disabled={Boolean(actionLoading)}
                   className={
                     `px-2 py-3 rounded-lg text-xs font-medium border transition-all ` +
@@ -192,6 +235,178 @@ export default function KnowledgeTabs() {
         {activeTab === 'summary' && <Summary />}
         {activeTab === 'actions' && <ActionResults />}
       </div>
+
+      {/* Premium Multi-Document & Setting Selection Modal */}
+      {selectedAction && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl shadow-xl max-w-md w-full overflow-hidden flex flex-col transform animate-in zoom-in-95 duration-200">
+            
+            {/* Header */}
+            <div className="p-5 border-b border-surface-100 dark:border-surface-800 flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-primary-50 dark:bg-primary-950/30 text-primary-600 dark:text-primary-400">
+                {(() => {
+                  const ActionIcon = selectedAction.icon;
+                  return <ActionIcon className="w-5 h-5" />;
+                })()}
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-surface-900 dark:text-white">
+                  {lang === 'th' ? `ตั้งค่าและเลือกเอกสารสำหรับสร้าง ${selectedAction.label}` : `Select documents & set options for ${selectedAction.label}`}
+                </h3>
+                <p className="text-xs text-surface-400 dark:text-surface-500 mt-0.5">
+                  {lang === 'th' ? 'กำหนดรูปแบบและแหล่งข้อมูลที่ต้องการนำมาประมวลผล' : 'Select options and source documents to include'}
+                </p>
+              </div>
+            </div>
+
+            {/* ส่วนที่ 1: การเลือกระดับความละเอียด (เฉพาะสไลด์ Slides เท่านั้น) */}
+            {selectedAction.id === 'slides' && (
+              <div className="p-5 border-b border-surface-100 dark:border-surface-800 bg-surface-50/50 dark:bg-surface-900/50">
+                <p className="text-xs font-bold text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1">
+                  <span>⚙️</span>
+                  {lang === 'th' ? 'ระดับความละเอียดของเนื้อหาในสไลด์' : 'Slide Content Detail Level'}
+                </p>
+                <div className="grid grid-cols-2 gap-2 p-1 bg-surface-100 dark:bg-surface-800/80 rounded-xl">
+                  <button
+                    onClick={() => setSelectedDetailLevel('concise')}
+                    className={`
+                      py-2 rounded-lg text-xs font-bold transition-all duration-200 flex items-center justify-center gap-1.5
+                      ${selectedDetailLevel === 'concise'
+                        ? 'bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm'
+                        : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
+                      }
+                    `}
+                  >
+                    <span>🎯</span>
+                    {lang === 'th' ? 'ครอบคลุม / สรุปกระชับ' : 'Concise / General'}
+                  </button>
+                  <button
+                    onClick={() => setSelectedDetailLevel('detailed')}
+                    className={`
+                      py-2 rounded-lg text-xs font-bold transition-all duration-200 flex items-center justify-center gap-1.5
+                      ${selectedDetailLevel === 'detailed'
+                        ? 'bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm'
+                        : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
+                      }
+                    `}
+                  >
+                    <span>⚡</span>
+                    {lang === 'th' ? 'เจาะลึก / รายละเอียดแน่น' : 'Deep & Detailed'}
+                  </button>
+                </div>
+                <p className="text-[10px] text-surface-400 dark:text-surface-500 mt-2 pl-1 leading-relaxed">
+                  {selectedDetailLevel === 'detailed'
+                    ? (lang === 'th' 
+                      ? '💡 โหมดรายละเอียดแน่น: ขยายความเนื้อหาแต่ละข้ออย่างกว้างขวาง 2-3 ประโยคเพื่ออธิบายประเด็นเชิงเทคนิค ตัวเลข และชื่อโครงการแบบจัดเต็ม' 
+                      : '💡 Detailed Mode: Deep exhaustively long bullet points and summaries filled with statistics, technical details, and full paragraphs.')
+                    : (lang === 'th' 
+                      ? '💡 โหมดครอบคลุมกระชับ: เนื้อหา 1-2 บรรทัด เหมาะสำหรับการบรรยายที่เน้นสรุปใจความสำคัญแบบอ่านง่าย รวดเร็ว' 
+                      : '💡 Concise Mode: Clean, quick-to-read overview statements tailored for high-level brief presentation layouts.')
+                  }
+                </p>
+              </div>
+            )}
+
+            {/* ส่วนที่ 2: สรุปแหล่งข้อมูล / รายการเลือกเอกสาร */}
+            {availableFiles.length > 1 ? (
+              <div className="p-5 overflow-y-auto max-h-[220px] flex flex-col gap-2 border-b border-surface-100 dark:border-surface-800">
+                <p className="text-xs font-bold text-surface-700 dark:text-surface-300 mb-1 flex items-center gap-1">
+                  <span>📂</span>
+                  {lang === 'th' ? 'เลือกเอกสารที่ต้องการสกัดข้อมูล' : 'Select documents to extract content from'}
+                </p>
+                {availableFiles.map((file) => {
+                  const isChecked = selectedFilesForAction.includes(file.name);
+                  return (
+                    <label
+                      key={file.name}
+                      className={`
+                        flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-200
+                        ${isChecked 
+                          ? 'bg-primary-50/50 dark:bg-primary-950/10 border-primary-300 dark:border-primary-800' 
+                          : 'bg-surface-50 dark:bg-surface-800/40 border-transparent hover:border-surface-200 dark:hover:border-surface-700'
+                        }
+                      `}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedFilesForAction([...selectedFilesForAction, file.name]);
+                          } else {
+                            setSelectedFilesForAction(selectedFilesForAction.filter(name => name !== file.name));
+                          }
+                        }}
+                        className="rounded border-surface-300 dark:border-surface-700 text-primary-600 focus:ring-primary-500 w-4 h-4"
+                      />
+                      
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-surface-800 dark:text-surface-200 truncate">
+                          {file.label}
+                        </p>
+                        <span className={`
+                          inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded mt-1
+                          ${file.type === 'pdf' 
+                            ? 'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400' 
+                            : 'bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400'
+                          }
+                        `}>
+                          {file.type.toUpperCase()}
+                        </span>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : availableFiles.length === 1 ? (
+              <div className="px-5 py-4 border-b border-surface-100 dark:border-surface-800 flex items-center gap-3 bg-surface-50 dark:bg-surface-800/30">
+                <div className={`
+                  p-2 rounded-lg text-[10px] font-bold
+                  ${availableFiles[0].type === 'pdf' 
+                    ? 'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400' 
+                    : 'bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400'
+                  }
+                `}>
+                  {availableFiles[0].type.toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] text-surface-400 dark:text-surface-500 font-medium">
+                    {lang === 'th' ? 'ดึงข้อมูลประมวลผลจากแหล่งข้อมูลเดี่ยว' : 'Extracting from single source'}
+                  </p>
+                  <p className="text-xs font-bold text-surface-800 dark:text-surface-200 truncate">
+                    {availableFiles[0].label}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Helper info */}
+            <div className="px-5 py-3 bg-surface-50 dark:bg-surface-800/30 text-[11px] text-surface-500 dark:text-surface-400 border-b border-surface-100 dark:border-surface-800 flex items-center gap-1.5">
+              <span className="text-xs">💡</span>
+              {selectedFilesForAction.length === 0 
+                ? (lang === 'th' ? 'หากไม่เลือกไฟล์ใดเลย ระบบจะสรุปภาพรวมจากทุกเอกสาร' : 'If no files are selected, it will generate an overview of all documents.')
+                : (lang === 'th' ? `จะสกัดข้อมูลจาก ${selectedFilesForAction.length} ไฟล์ที่เลือก` : `Will extract from ${selectedFilesForAction.length} selected file(s)`)}
+            </div>
+
+            {/* Actions Footer */}
+            <div className="p-4 bg-surface-50 dark:bg-surface-900 flex justify-end gap-2">
+              <button
+                onClick={() => setSelectedAction(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-150 dark:hover:bg-surface-800 transition-colors"
+              >
+                {lang === 'th' ? 'ยกเลิก' : 'Cancel'}
+              </button>
+              <button
+                onClick={() => handleActionClick(selectedAction, selectedFilesForAction, selectedDetailLevel)}
+                className="px-5 py-2 rounded-xl text-xs font-semibold bg-primary-600 hover:bg-primary-700 text-white shadow-sm transition-colors"
+              >
+                {lang === 'th' ? 'สร้างข้อมูลเชิงลึก' : 'Generate Insights'}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -135,9 +135,15 @@ class ActionGenerateRequest(BaseModel):
     )
     user_goal: Optional[str] = Field(default=None, description="เป้าหมายเพิ่มเติมจากผู้ใช้")
     language: str = Field(default="th", description="ภาษา output (th/en)")
+    selected_files: Optional[List[str]] = Field(default=None, description="รายชื่อชื่อไฟล์ที่ต้องการดึงข้อมูลสำหรับสร้าง Action")
+    detail_level: Optional[str] = Field(default="concise", description="ระดับความละเอียดของเนื้อหา (concise / detailed)")
+
+
 
 
 class ActionGenerateResponse(BaseModel):
+    id: Optional[str] = None
+    title: Optional[str] = None
     action_type: ActionType
     prompt: str
     answer: str

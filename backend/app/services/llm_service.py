@@ -203,7 +203,8 @@ class LLMService:
         session_id: str,
         model_name: str,
         search_query: str = None,
-        top_k: int = None
+        top_k: int = None,
+        selected_files: list = None
     ) -> Dict[str, Any]:
         """
         ถามคำถามโดยใช้ context จาก Vector Store
@@ -214,6 +215,7 @@ class LLMService:
             model_name: ชื่อโมเดลที่ต้องการใช้
             search_query: ข้อความเพิ่มเติมในการค้นหา
             top_k: จำนวน chunk ที่ต้องการดึง (ถ้าระบุ จะใช้แทนค่า default ของระบบ)
+            selected_files: รายชื่อไฟล์ที่ต้องการกรองดึงข้อมูล (ถ้าระบุ)
 
         Returns:
             Dict with 'thinking' (optional) and 'answer' keys
@@ -246,11 +248,47 @@ class LLMService:
         )
         print(f"   ⏱️ Create index: {time.time() - t1:.2f}s")
 
-        # 1. Vector Retriever - ใช้ effective_top_k ที่กำหนดตาม runtime
-        vector_retriever = index.as_retriever(similarity_top_k=effective_top_k)
+        # 1. Vector Retriever - ใช้ effective_top_k ที่กำหนดตาม runtime พร้อมกรองไฟล์ที่เลือก (ถ้ามี)
+        retriever_kwargs = {"similarity_top_k": effective_top_k}
+        if selected_files:
+            from llama_index.core.vector_stores import MetadataFilters, MetadataFilter, FilterCondition
+            print(f"   🎯 [Metadata Filter] ค้นหาเฉพาะไฟล์: {selected_files}")
+            if len(selected_files) == 1:
+                filters = MetadataFilters(
+                    filters=[MetadataFilter(key="file_name", value=selected_files[0])]
+                )
+            else:
+                filters = MetadataFilters(
+                    filters=[
+                        MetadataFilter(key="file_name", value=file) for file in selected_files
+                    ],
+                    condition=FilterCondition.OR
+                )
+            retriever_kwargs["filters"] = filters
+
+        vector_retriever = index.as_retriever(**retriever_kwargs)
 
         # 2. BM25 Retriever
-        bm25_retriever = vector_store_service.get_bm25_retriever(session_id)
+        if selected_files:
+            session_nodes = vector_store_service._load_bm25_nodes(session_id)
+            filtered_nodes = [
+                node for node in session_nodes 
+                if node.metadata.get("file_name") in selected_files
+            ]
+            if filtered_nodes:
+                print(f"🚀 [Hybrid Search Filtered] กำลังสร้างคีย์เวิร์ดฟิลเตอร์ชั่วคราวสำหรับ {len(filtered_nodes)} nodes")
+                from llama_index.retrievers.bm25 import BM25Retriever
+                from app.services.vector_store import thai_tokenizer
+                bm25_retriever = BM25Retriever.from_defaults(
+                    nodes=filtered_nodes,
+                    similarity_top_k=2,
+                    tokenizer=thai_tokenizer,
+                )
+            else:
+                print("⚠️ [Hybrid Search Filtered] ไม่พบ nodes สอดคล้องกับ selected_files สำหรับ BM25")
+                bm25_retriever = None
+        else:
+            bm25_retriever = vector_store_service.get_bm25_retriever(session_id)
 
         # ดึง LLM มาเตรียมไว้สำหรับ Retriever / Synthesizer
         llm = self.get_llm(model_name)

@@ -175,23 +175,23 @@ SINGLE_SLIDE_HTML_TEMPLATE = """
     }
   </style>
 </head>
-<body class="bg-gradient-to-br from-[#070b13] via-[#0f172a] to-[#1e1b4b] text-slate-100 p-10 flex flex-col justify-between relative overflow-hidden">
+<body class="bg-gradient-to-br from-[#070b13] via-[#0f172a] to-[#1e1b4b] text-slate-100 py-7 px-10 flex flex-col justify-between relative overflow-hidden">
   <!-- Glowing circles in the background -->
   <div class="absolute -top-40 -right-40 w-[500px] h-[500px] rounded-full bg-indigo-500/10 blur-[120px] pointer-events-none"></div>
   <div class="absolute -bottom-40 -left-40 w-[500px] h-[500px] rounded-full bg-cyan-500/10 blur-[120px] pointer-events-none"></div>
-
+ 
   <!-- Decorative Top Line border -->
   <div class="absolute top-0 left-0 right-0 h-[5px] bg-gradient-to-r from-indigo-500 via-purple-500 to-cyan-500"></div>
-
+ 
   <!-- SLIDE HEADER -->
-  <div class="flex items-center justify-between border-b border-slate-800 pb-5 mb-6 relative z-10">
+  <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-4 relative z-10">
     <div class="flex items-center gap-4">
-      <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center shadow-lg shadow-indigo-500/5">
-        <i data-lucide="{{ current_slide.icon_name or 'presentation' }}" class="w-6 h-6 text-indigo-400"></i>
+      <div class="w-11 h-11 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center shadow-lg shadow-indigo-500/5">
+        <i data-lucide="{{ current_slide.icon_name or 'presentation' }}" class="w-5.5 h-5.5 text-indigo-400"></i>
       </div>
       <div>
         <span class="text-[10px] font-bold text-indigo-400 uppercase tracking-widest font-mono">SLIDE {{ current_slide.slide_number }}</span>
-        <h1 class="text-2xl font-black text-white tracking-tight leading-tight mt-0.5">{{ current_slide.slide_title }}</h1>
+        <h1 class="text-xl font-black text-white tracking-tight leading-tight mt-0.5">{{ current_slide.slide_title }}</h1>
       </div>
     </div>
     
@@ -204,38 +204,27 @@ SINGLE_SLIDE_HTML_TEMPLATE = """
       </span>
     </div>
   </div>
-
+ 
   <!-- SLIDE CONTENT -->
-  <div class="flex-1 flex flex-col justify-center px-6 relative z-10">
-    <div class="my-auto space-y-6">
+  <div class="flex-1 flex flex-col justify-center px-4 relative z-10">
+    <div class="my-auto space-y-4">
       {% if current_slide.slide_description %}
-      <p class="text-base text-slate-300 leading-relaxed border-l-2 border-indigo-500/50 pl-4 py-2 bg-indigo-500/5 rounded-r-xl max-w-4xl tracking-wide font-normal">
+      <p class="text-[13.5px] text-slate-300 leading-relaxed border-l-2 border-indigo-500/50 pl-3.5 py-1.5 bg-indigo-500/5 rounded-r-xl max-w-5xl tracking-wide font-normal">
         {{ current_slide.slide_description }}
       </p>
       {% endif %}
       
-      <div class="space-y-4">
+      <div class="space-y-2.5">
         {% for pt in current_slide.key_points %}
-        <div class="flex items-start gap-4">
-          <div class="mt-2.5 w-2 h-2 rounded-full bg-gradient-to-r from-indigo-400 to-cyan-400 shadow-lg shadow-indigo-500/60 shrink-0"></div>
-          <p class="text-base text-slate-100 leading-relaxed font-medium tracking-wide">{{ pt }}</p>
+        <div class="flex items-start gap-3">
+          <div class="mt-2 w-1.5 h-1.5 rounded-full bg-gradient-to-r from-indigo-400 to-cyan-400 shadow-lg shadow-indigo-500/60 shrink-0"></div>
+          <p class="text-[13px] text-slate-200 leading-relaxed font-medium tracking-wide">{{ pt }}</p>
         </div>
         {% endfor %}
       </div>
     </div>
   </div>
-
-  <!-- FOOTER -->
-  <div class="flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-900 pt-4 mt-6 relative z-10">
-    <div class="flex items-center gap-2">
-      <div class="w-2 h-2 rounded-full bg-emerald-500/80 animate-pulse"></div>
-      <span>RAG-LLM Presentation Engine • AI Generated</span>
-    </div>
-    <div>
-      © 2026 NotebookLM Studio
-    </div>
-  </div>
-
+ 
   <script>
     lucide.createIcons();
   </script>
@@ -394,16 +383,10 @@ INFOGRAPHIC_HTML_TEMPLATE = """
       <div class="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center shrink-0">
         <i data-lucide="sparkles" class="w-4.5 h-4.5 {{ icon_color }}"></i>
       </div>
-      <div>
-        <p class="text-[10px] font-bold uppercase tracking-wider {{ accent_text }}">Call to Action / สรุปปิดท้าย</p>
-        <p class="text-sm text-slate-200 font-semibold mt-0.5 leading-relaxed">{{ call_to_action }}</p>
-      </div>
     </div>
     {% endif %}
 
-    <div class="text-right text-[10px] text-slate-500 pl-8 select-none shrink-0 font-mono">
-      AI-POWERED STUDIO • FASTAPI + JINJA2 + PLAYWRIGHT
-    </div>
+
   </div>
 
   <script>
@@ -479,6 +462,45 @@ def _run_playwright_in_thread(html_content: str, width: int, height: int, full_p
         loop.close()
 
 
+def repair_json_newlines(json_str: str) -> str:
+    """
+    Escapes literal newlines and control characters inside double-quoted strings in JSON.
+    This fixes JSONDecodeErrors when LLMs return literal newlines in JSON string values.
+    """
+    chars = list(json_str)
+    inside_string = False
+    escaped = False
+    repaired = []
+    
+    for char in chars:
+        if escaped:
+            repaired.append(char)
+            escaped = False
+            continue
+            
+        if char == '\\':
+            repaired.append(char)
+            if inside_string:
+                escaped = True
+            continue
+            
+        if char == '"':
+            inside_string = not inside_string
+            repaired.append(char)
+            continue
+            
+        if inside_string and char == '\n':
+            repaired.append('\\n')
+            continue
+            
+        if inside_string and char == '\r':
+            continue
+            
+        repaired.append(char)
+        
+    return "".join(repaired)
+
+
 # -------------------------------------------------------------
 # 4. ฟังก์ชันหลักสำหรับแปลง JSON เป็นภาพ Base64
 # -------------------------------------------------------------
@@ -488,7 +510,9 @@ async def render_action_to_image(action_type: str, data_json_str: str) -> str:
     ทำการรวมเข้ากับ Jinja2 HTML template และเปิด Thread แยกในการเรนเดอร์ Playwright เพื่อความปลอดภัยบน Windows
     """
     try:
-        data = json.loads(data_json_str)
+        # ซ่อมแซม newlines ใน JSON string เผื่อเกิดการเคาะขึ้นบรรทัดใหม่จาก LLM
+        safe_json_str = repair_json_newlines(data_json_str)
+        data = json.loads(safe_json_str)
     except Exception as e:
         print(f"❌ [Render Error] Failed to parse JSON: {e}")
         raise ValueError(f"LLM output is not valid JSON: {str(e)}")
