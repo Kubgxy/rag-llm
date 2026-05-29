@@ -54,10 +54,37 @@ export default function Workspace() {
     }
   }
 
-  // Ensure current session in URL matches store
+  // Hydrate chat, document, and web source state from history when sessionId changes
   useEffect(() => {
     if (sessionId) {
+      // 1. Set active session ID in stores
       useSessionStore.setState({ sessionId })
+      useChatHistoryStore.setState({ activeSessionId: sessionId })
+
+      // 2. Fetch session data from history
+      const sessionData = useChatHistoryStore.getState().history[sessionId]
+      
+      if (sessionData) {
+        // Hydrate existing session
+        useChatStore.setState({ messages: sessionData.messages || [] })
+        useSessionStore.setState({ chatTitle: sessionData.title || 'New Chat' })
+        useDocumentStore.setState({
+          documents: sessionData.documents || [],
+          importedWebSources: sessionData.importedWebSources || [],
+          summary: sessionData.summary || null,
+          mindmapNodes: sessionData.mindmapNodes || [],
+          mindmapEdges: sessionData.mindmapEdges || [],
+          // Clear temp search/preview states from other sessions
+          webSearchQuery: '',
+          webSearchResults: [],
+          selectedWebSourceUrls: [],
+        })
+      } else {
+        // Create new session or empty state
+        useChatStore.getState().clearMessages()
+        useSessionStore.setState({ chatTitle: 'New Chat' })
+        useDocumentStore.getState().clearDocuments()
+      }
     }
   }, [sessionId])
 
@@ -216,7 +243,7 @@ export default function Workspace() {
       {/* Mobile overlays */}
       {(showMobileLeft || showMobileRight) && (
         <div 
-          className="fixed inset-0 bg-black/20 dark:bg-black/40 z-0 md:hidden" 
+          className="fixed inset-0 bg-black/20 dark:bg-black/40 z-30 md:hidden" 
           onClick={() => { setShowMobileLeft(false); setShowMobileRight(false); }}
         />
       )}

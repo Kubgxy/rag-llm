@@ -48,8 +48,11 @@ class WebSearchService:
         session_id: str,
         query: str,
         search_depth: str = "basic",
-        include_answer: str = "none",
-        max_results: int = 10,
+        max_results: int = 5,
+        topic: str = "general",
+        time_range: str = None,
+        start_date: str = None,
+        end_date: str = None,
     ) -> List[Dict[str, str]]:
         if not query or not query.strip():
             raise ValueError("query ต้องไม่ว่าง")
@@ -61,10 +64,15 @@ class WebSearchService:
             "query": query.strip(),
             "search_depth": search_depth,
             "max_results": max_results,
-            "include_raw_content": True,
+            "topic": topic,
+            "include_raw_content": False,
         }
-        if include_answer != "none":
-            search_kwargs["include_answer"] = include_answer
+        if time_range and time_range != "none":
+            search_kwargs["time_range"] = time_range
+        if start_date:
+            search_kwargs["start_date"] = start_date
+        if end_date:
+            search_kwargs["end_date"] = end_date
 
         response = await asyncio.to_thread(client.search, **search_kwargs)
         normalized = self._normalize_results(response.get("results", []))
@@ -114,23 +122,40 @@ class WebSearchService:
 
         if missing_urls:
             client = self._get_client()
-            extract_response = await asyncio.to_thread(
-                client.extract,
-                urls=missing_urls,
-                include_images=False,
-            )
-            extracted_items = extract_response.get("results", []) if isinstance(extract_response, dict) else []
-            for item in extracted_items:
-                url = str(item.get("url", "")).strip()
-                raw_content = str(item.get("raw_content", "")).strip()
-                if not url or not raw_content:
-                    continue
+            try:
+                extract_response = await asyncio.to_thread(
+                    client.extract,
+                    urls=missing_urls,
+                    include_images=False,
+                )
+                extracted_items = extract_response.get("results", []) if isinstance(extract_response, dict) else []
+            except Exception as e:
+                print(f"⚠️ [Tavily Extract Error] {e}. Falling back to search snippets.")
+                extracted_items = []
+
+            extracted_by_url = {str(item.get("url", "")).strip(): item for item in extracted_items}
+
+            for url in missing_urls:
+                cached_item = session_cache.get(url, {})
+                ext_item = extracted_by_url.get(url)
+                
+                # Get raw content from extraction, or fallback to snippet if extraction failed/empty
+                raw_content = ""
+                if ext_item:
+                    raw_content = str(ext_item.get("raw_content", "")).strip()
+                
+                if not raw_content:
+                    raw_content = cached_item.get("snippet", "")
+                
+                # If still empty, use a placeholder based on title/url
+                if not raw_content:
+                    raw_content = f"แหล่งข้อมูลจาก {cached_item.get('title', url)}"
 
                 merged = {
-                    "title": str(item.get("title", "")).strip() or url,
+                    "title": cached_item.get("title", url),
                     "url": url,
-                    "snippet": str(item.get("content", "")).strip(),
-                    "source": str(item.get("source", "")).strip(),
+                    "snippet": cached_item.get("snippet", ""),
+                    "source": cached_item.get("source", cached_item.get("title", url)),
                     "raw_content": raw_content,
                 }
                 session_cache[url] = merged

@@ -76,7 +76,7 @@ export const useDocumentStore = create(
 
   setUploadError: (error) => set({ uploadError: error, isUploading: false }),
 
-  setUploadResult: ({ fileName, summary, nodes, edges }) => {
+  setUploadResult: ({ fileName, fileSize, summary, nodes, edges }) => {
     const t = useLanguageStore.getState().t
     // Handle both old format (string) and new format (object)
     const processedSummary = typeof summary === 'string'
@@ -96,17 +96,24 @@ export const useDocumentStore = create(
         }
       : summary || null
 
-    return set((state) => ({
-      // 🔧 Fix: แทนที่เอกสารแทนการ append ทุกครั้ง
-      documents: [{ name: fileName, uploadedAt: new Date() }],
-      summary: processedSummary,
-      mindmapNodes: nodes || [],
-      mindmapEdges: edges || [],
-      actionResults: [],
-      selectedActionResultId: null,
-      isUploading: false,
-      uploadError: null,
-    }))
+    return set((state) => {
+      // 🔧 Fix: Append document instead of replacing
+      const exists = state.documents.some(doc => doc.name === fileName)
+      const updatedDocs = exists
+        ? state.documents
+        : [...state.documents, { name: fileName, size: fileSize || 0, uploadedAt: new Date() }]
+
+      return {
+        documents: updatedDocs,
+        summary: processedSummary,
+        mindmapNodes: nodes || [],
+        mindmapEdges: edges || [],
+        actionResults: [],
+        selectedActionResultId: null,
+        isUploading: false,
+        uploadError: null,
+      }
+    })
   },
 
   setActiveTab: (tab) => set({ activeTab: tab }),
@@ -129,11 +136,39 @@ export const useDocumentStore = create(
         answer: result.answer,
         modelName: result.modelName || null,
         citations: result.citations || [],
-        createdAt: result.createdAt || Date.now(),
+        createdAt: result.created_at || result.createdAt || Date.now(),
       }
       return {
         actionResults: [item, ...state.actionResults],
         selectedActionResultId: item.id,
+      }
+    }),
+
+  setActionResults: (results) =>
+    set((state) => {
+      const t = useLanguageStore.getState().t
+      const items = results.map((result) => {
+        let title = result.action_type
+        if (result.action_type === 'slides') title = t('knowledgeActionSlides')
+        else if (result.action_type === 'infographic') title = t('knowledgeActionInfographic')
+        else if (result.action_type === 'mindmap') title = t('knowledgeActionMindmap')
+        else if (result.action_type === 'chart') title = t('knowledgeActionChart')
+
+        return {
+          id: result.id || `action-${result.action_type}-${Date.now()}-${Math.random()}`,
+          actionType: result.action_type,
+          title: title,
+          answer: result.answer,
+          modelName: result.model_name || null,
+          citations: result.citations || [],
+          createdAt: result.created_at || result.createdAt || Date.now(),
+        }
+      })
+
+      const selectedId = items.length > 0 ? items[0].id : null;
+      return {
+        actionResults: items,
+        selectedActionResultId: state.selectedActionResultId || selectedId
       }
     }),
 
@@ -158,17 +193,46 @@ export const useDocumentStore = create(
   }),
   {
     name: 'rag-document-storage', // ชื่อ key ใน localStorage
+    storage: {
+      getItem: (name) => {
+        try {
+          const str = localStorage.getItem(name)
+          return str ? JSON.parse(str) : null
+        } catch (e) {
+          console.error("Zustand getItem error:", e)
+          return null
+        }
+      },
+      setItem: (name, newValue) => {
+        try {
+          localStorage.setItem(name, JSON.stringify(newValue))
+        } catch (e) {
+          console.error("Zustand setItem error (Quota exceeded):", e)
+          // 🔧 ถ้าโควต้าเต็ม ให้ลบตัวที่บล็อกอยู่ทิ้งเพื่อให้ระบบเดินต่อได้ทันที
+          if (e.name === 'QuotaExceededError' || e.code === 22) {
+            try {
+              localStorage.removeItem(name)
+            } catch (innerEx) {}
+          }
+        }
+      },
+      removeItem: (name) => {
+        try {
+          localStorage.removeItem(name)
+        } catch (e) {}
+      }
+    },
     partialize: (state) => ({
       documents: state.documents,
       summary: state.summary,
       mindmapNodes: state.mindmapNodes,
       mindmapEdges: state.mindmapEdges,
-      actionResults: state.actionResults,
+      // 🔧 Exclude actionResults จาก localStorage เพื่อป้องกัน QuotaExceededError จากรูป Base64 ขนาดใหญ่
       selectedActionResultId: state.selectedActionResultId,
       webSearchQuery: state.webSearchQuery,
       webSearchResults: state.webSearchResults,
       selectedWebSourceUrls: state.selectedWebSourceUrls,
       importedWebSources: state.importedWebSources,
-    }), // เก็บได้อย่างไร documents,summary,mindmap
+    }),
   }
 ))

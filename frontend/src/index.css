@@ -48,14 +48,13 @@
   }
 }
 
-/* ReactFlow overrides - NotebookLM style with smooth animations */
+/* ReactFlow overrides - Cleaned up to support beautiful custom nodes */
 .react-flow__node {
-  @apply !bg-white !border-0 !rounded-xl !shadow-sm !px-4 !py-2 !text-sm !font-medium;
-  border: 2px solid transparent !important;
-  transition: background-color 0.2s ease,
-              box-shadow 0.2s ease,
-              border-color 0.2s ease,
-              opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
               transform 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
@@ -66,18 +65,17 @@
 }
 
 .react-flow__node:hover {
-  background-color: #f0f0ff !important;
-  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3) !important;
-  border-color: rgba(99, 102, 241, 0.3) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
 }
 
 .dark .react-flow__node {
-  @apply !bg-surface-800 !text-surface-100;
-  border: 2px solid transparent !important;
-  transition: background-color 0.2s ease,
-              box-shadow 0.2s ease,
-              border-color 0.2s ease,
-              opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
               transform 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
@@ -87,9 +85,9 @@
 }
 
 .dark .react-flow__node:hover {
-  background-color: #4a4a5e !important;
-  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.5) !important;
-  border-color: rgba(139, 92, 246, 0.4) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
 }
 
 .react-flow__edge-path {

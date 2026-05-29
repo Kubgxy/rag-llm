@@ -2,7 +2,7 @@ import os
 import json
 import re
 import asyncio
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from app.services.vector_store import vector_store_service
 from llama_index.core import Document, VectorStoreIndex
 from llama_index.core.node_parser import SentenceSplitter
@@ -63,7 +63,8 @@ class DocumentProcessorService:
             # 2. สร้าง Vector Index และ BM25
             print(f"🔍 [Task] กำลังสร้าง Vector Index และ BM25 ({len(docs)} chunks/pages)...")
             storage_context = vector_store_service.get_session_storage(session_id)
-            splitter = SentenceSplitter(chunk_size=1500, chunk_overlap=150)
+            from app.services.vector_store import thai_tokenizer
+            splitter = SentenceSplitter(chunk_size=1500, chunk_overlap=150, tokenizer=thai_tokenizer)
             nodes = splitter.get_nodes_from_documents(docs)
             index = VectorStoreIndex(
                 nodes=nodes,
@@ -302,15 +303,16 @@ class DocumentProcessorService:
             "mindmap": {"nodes": [], "edges": []}
         })
 
-    def import_web_sources(self, session_id: str, sources: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    async def import_web_sources(self, session_id: str, sources: List[Dict[str, str]]) -> Dict[str, Any]:
         """
         นำ raw_content จากแหล่งข้อมูลเว็บเข้าสู่ RAG pipeline เดิม
         - split เป็น chunks
         - ใส่ metadata source/url
         - ทำ embedding และบันทึกลง ChromaDB ของ session เดิม
+        - สร้าง summary อัตโนมัติจากหน้าเว็บนำเข้า
         """
         if not sources:
-            return []
+            return {"imported_sources": [], "summary": ""}
 
         docs: List[Document] = []
         imported_sources: List[Dict[str, str]] = []
@@ -347,20 +349,32 @@ class DocumentProcessorService:
             })
 
         if not docs:
-            return []
+            return {"imported_sources": [], "summary": ""}
 
         storage_context = vector_store_service.get_session_storage(session_id)
-        splitter = SentenceSplitter(chunk_size=3000, chunk_overlap=150)
+        from app.services.vector_store import thai_tokenizer
+        splitter = SentenceSplitter(chunk_size=3000, chunk_overlap=150, tokenizer=thai_tokenizer)
         nodes = splitter.get_nodes_from_documents(docs)
         if not nodes:
-            return []
+            return {"imported_sources": [], "summary": ""}
 
-        VectorStoreIndex(
+        index = VectorStoreIndex(
             nodes=nodes,
             storage_context=storage_context,
         )
         vector_store_service.extend_bm25_nodes(session_id, nodes)
-        return imported_sources
+
+        # Generate summary of the imported web sources
+        summary = ""
+        try:
+            summary = await self._generate_summary(index)
+        except Exception as e:
+            print(f"⚠️ [Web Summary Error] {str(e)}")
+
+        return {
+            "imported_sources": imported_sources,
+            "summary": summary
+        }
 
 
 # Singleton instance

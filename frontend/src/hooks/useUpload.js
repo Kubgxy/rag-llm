@@ -1,9 +1,11 @@
 import { useState, useCallback } from 'react'
-import { uploadDocument, checkDocumentStatus } from '../services/api.js' // เพิ่ม checkDocumentStatus
+import { uploadDocument, checkDocumentStatus } from '../services/api.js'
 import { useDocumentStore } from '../stores/documentStore.js'
 import { useSessionStore } from '../stores/sessionStore.js'
 import { useToast } from '../components/ui/Toast.jsx'
 import { useLanguageStore } from '../stores/languageStore.js'
+import { useChatStore } from '../stores/chatStore.js'
+import { useChatHistoryStore } from '../stores/chatHistoryStore.js'
 
 export function useUpload() {
   const [isDragging, setIsDragging] = useState(false)
@@ -11,8 +13,29 @@ export function useUpload() {
   const { setUploading, setUploadResult, setUploadError, isUploading } = useDocumentStore()
   const { addToast } = useToast()
   const t = useLanguageStore.getState().t
-  // ✅ แก้: ดึง getSessionId จาก sessionStore แทน chatStore
   const getSessionId = useSessionStore((state) => state.getSessionId)
+
+  // Sync state to persistent session history
+  const syncToHistory = useCallback((sessionId) => {
+    setTimeout(() => {
+      const currentMessages = useChatStore.getState().messages;
+      const docStore = useDocumentStore.getState();
+      const chatTitle = useSessionStore.getState().chatTitle;
+
+      useChatHistoryStore.getState().saveSession(
+        sessionId,
+        currentMessages,
+        {
+          documents: docStore.documents,
+          summary: docStore.summary,
+          mindmapNodes: docStore.mindmapNodes,
+          mindmapEdges: docStore.mindmapEdges,
+          importedWebSources: docStore.importedWebSources,
+        },
+        chatTitle
+      );
+    }, 100);
+  }, []);
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault()
@@ -30,20 +53,30 @@ export function useUpload() {
     async (file) => {
       if (!file) return
       if (file.type !== 'application/pdf') { addToast(t('uploadPdfOnly'), 'error'); return }
-      if (file.size > 50 * 1024 * 1024) { addToast(t('uploadSizeLimit'), 'error'); return }
+
+      // 🔧 Check total size limit
+      const currentDocs = useDocumentStore.getState().documents || []
+
+      // Limit to max 50 MB total size
+      const currentTotalSize = currentDocs.reduce((sum, doc) => sum + (doc.size || 0), 0)
+      const MAX_TOTAL_SIZE_BYTES = 50 * 1024 * 1024 // 50 MB
+      
+      if (currentTotalSize + file.size > MAX_TOTAL_SIZE_BYTES) {
+        addToast(t('uploadTotalSizeLimitExceeded') || 'ไม่สามารถอัปโหลดได้ เนื่องจากขนาดไฟล์รวมในแชทนี้จะเกินขีดจำกัด 50 MB', 'error')
+        return
+      }
 
       setUploading(true)
       setProgressText(t('uploadEmbeddingProgress'))
 
       try {
-        // ✅ เรียก getSessionId() เพื่อดึง sessionId
         const sessionId = getSessionId()
         const data = await uploadDocument(file, sessionId)
         const filename = data.filename
         
-        let isChatUnlocked = false; // 👈 ตัวแปรเช็กว่าปลดล็อกแชทไปหรือยัง
+        let isChatUnlocked = false;
 
-        // ตั้งเวลาถามเซิร์ฟเวอร์ทุกๆ 3 วินาที (ให้ไวขึ้นนิดนึง)
+        // ตั้งเวลาถามเซิร์ฟเวอร์ทุกๆ 3 วินาที
         const pollInterval = setInterval(async () => {
           try {
             const statusData = await checkDocumentStatus(sessionId, filename)
@@ -51,28 +84,33 @@ export function useUpload() {
             // 🟢 จังหวะที่ 1: Embed เสร็จแล้ว ปลดล็อกแชทเลย!
             if (statusData.status === 'ready_for_chat' && !isChatUnlocked) {
               isChatUnlocked = true;
-              setUploading(false); // เอาแถบโหลดหมุนๆ ออก
+              setUploading(false);
               setProgressText('');
 
-              // ใส่ข้อมูลหลอกๆ ให้หน้าเว็บเปิดห้องแชทได้
               setUploadResult({
                 fileName: file.name,
-                summary: statusData.summary, // จะโชว์ข้อความ "⏳ AI กำลังสรุปเนื้อหา..."
+                fileSize: file.size,
+                summary: statusData.summary,
                 nodes: [], edges: [],
               });
+              
+              syncToHistory(sessionId);
               addToast(t('uploadReadyToast'), 'success');
             }
 
             // 🟢 จังหวะที่ 2: งานเบื้องหลังเสร็จหมดแล้ว
             else if (statusData.status === 'completed') {
-              clearInterval(pollInterval); // หยุดการถามเซิร์ฟเวอร์
-              // อัปเดต Summary ตัวจริงเข้าไปทับ (Mindmap สร้างผ่าน Action)
+              clearInterval(pollInterval);
+              
               setUploadResult({
                 fileName: file.name,
+                fileSize: file.size,
                 summary: statusData.summary,
                 nodes: statusData.mindmap?.nodes || [],
                 edges: statusData.mindmap?.edges || [],
               });
+              
+              syncToHistory(sessionId);
               addToast(t('uploadSummaryReadyToast'), 'success');
             }
             
@@ -102,7 +140,7 @@ export function useUpload() {
         addToast(err.message || t('uploadFailed'), 'error')
       }
     },
-    [setUploading, setUploadResult, setUploadError, addToast, getSessionId]
+    [setUploading, setUploadResult, setUploadError, addToast, getSessionId, syncToHistory, t]
   )
 
   const handleDrop = useCallback(
@@ -128,7 +166,7 @@ export function useUpload() {
   return {
     isDragging,
     isUploading,
-    progressText, // ส่งตัวแปรนี้ออกไปให้หน้า UI แสดงผลด้วย
+    progressText,
     handleDragOver,
     handleDragLeave,
     handleDrop,

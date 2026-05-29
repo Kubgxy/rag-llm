@@ -32,6 +32,17 @@ import {
   ArrowRight,
   Palette,
   Shapes,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Mic,
+  Presentation,
+  ShieldCheck,
+  Activity,
+  Cpu,
+  CloudLightning,
+  Server,
+  Database,
 } from 'lucide-react'
 import { toPng } from 'html-to-image'
 import Mindmap from './Mindmap.jsx'
@@ -510,10 +521,24 @@ function ChartPreview({ answer }) {
   )
 }
 
-function SlidesPreview({ answer }) {
-  const parsed = useMemo(() => parseJsonSafe(answer), [answer])
+function getSlideIcon(iconName) {
+  const name = String(iconName || '').toLowerCase()
+  if (name.includes('database')) return Database
+  if (name.includes('server')) return Server
+  if (name.includes('shield-check') || name.includes('shield')) return ShieldCheck
+  if (name.includes('users') || name.includes('user') || name.includes('people')) return Users
+  if (name.includes('bar-chart') || name.includes('chart')) return BarChart3
+  if (name.includes('activity')) return Activity
+  if (name.includes('cpu')) return Cpu
+  if (name.includes('cloud-lightning') || name.includes('lightning')) return CloudLightning
+  return FileText
+}
 
-  if (!parsed || !Array.isArray(parsed.slides)) {
+function SlidesPreview({ answer, isFullscreen }) {
+  const parsed = useMemo(() => parseJsonSafe(answer), [answer])
+  const [currentIndex, setCurrentIndex] = useState(0)
+
+  if (!parsed || !Array.isArray(parsed.slides) || parsed.slides.length === 0) {
     return (
       <div className="space-y-3">
         <p className="text-xs text-amber-500">Slides JSON is invalid, showing raw output instead.</p>
@@ -522,66 +547,161 @@ function SlidesPreview({ answer }) {
     )
   }
 
-  const filename = `slides-${toFileSafe(parsed?.title || 'slides')}.png`
-  const { ref, isDownloading, download } = usePngDownload(filename)
+  const slides = parsed.slides
+  const currentSlide = slides[currentIndex]
+  const totalSlides = slides.length
+
+  const handlePrev = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1)
+    }
+  }
+
+  const handleNext = () => {
+    if (currentIndex < totalSlides - 1) {
+      setCurrentIndex(currentIndex + 1)
+    }
+  }
+
+  const handleDownload = () => {
+    if (currentSlide.image) {
+      const link = document.createElement('a')
+      link.download = `slide-${currentIndex + 1}-${toFileSafe(parsed?.title || 'presentation')}.png`
+      link.href = currentSlide.image
+      link.click()
+    } else {
+      triggerHtmlDownload()
+    }
+  }
+
+  const filename = `slide-${currentIndex + 1}-${toFileSafe(parsed?.title || 'presentation')}.png`
+  const { ref, isDownloading, download: triggerHtmlDownload } = usePngDownload(filename)
+
+  const SlideIcon = getSlideIcon(currentSlide.icon_name)
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-end">
-        <button
-          type="button"
-          onClick={download}
-          disabled={isDownloading}
-          className={
-            `px-3 py-1.5 rounded-md text-[11px] border transition-colors ` +
-            `${isDownloading
-              ? 'bg-surface-100 text-surface-400 border-surface-200 dark:bg-surface-800 dark:text-surface-500 dark:border-surface-700'
-              : 'bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-300 border-surface-200 dark:border-surface-700 hover:border-primary-300'
-            }`
-          }
-        >
-          {isDownloading ? 'Generating...' : 'Download PNG'}
-        </button>
-      </div>
-
-      <div ref={ref} className="space-y-3">
-        <div className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl p-4">
-          <h4 className="text-sm font-semibold text-surface-800 dark:text-surface-100">{parsed.title || 'Slides'}</h4>
-          {parsed.audience && <p className="text-xs text-surface-500 mt-1">Audience: {parsed.audience}</p>}
+    <div className="space-y-3 animate-in fade-in duration-500 max-h-[120vh] flex flex-col justify-start">
+      {/* Slide Navigation Header Control */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-3 shadow-sm relative z-10 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 flex items-center justify-center shrink-0">
+            <Presentation className="w-4.5 h-4.5" />
+          </div>
+          <div className="min-w-0">
+            <h4 className="text-xs font-semibold text-surface-800 dark:text-surface-100 truncate max-w-[180px] sm:max-w-[280px]">
+              {parsed.title || 'Slide Presentation Deck'}
+            </h4>
+            <p className="text-[10px] text-surface-500">
+              {parsed.audience ? `${parsed.audience} • ` : ''} Slide {currentIndex + 1} of {totalSlides}
+            </p>
+          </div>
         </div>
 
-        <div className="space-y-3">
-          {parsed.slides.map((slide, idx) => (
-            <div
-              key={`slide-${idx}`}
-              className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl p-4"
+        <div className="flex items-center justify-between sm:justify-end gap-2.5">
+          <div className="flex items-center gap-1 bg-surface-100 dark:bg-surface-800 p-0.5 rounded-lg">
+            <button
+              type="button"
+              onClick={handlePrev}
+              disabled={currentIndex === 0}
+              className="p-1 rounded text-surface-600 dark:text-surface-300 hover:bg-white dark:hover:bg-surface-700 disabled:opacity-40 disabled:hover:bg-transparent dark:disabled:hover:bg-transparent transition-all cursor-pointer"
             >
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs px-2 py-0.5 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300">
-                  Slide {idx + 1}
-                </span>
-                <h5 className="text-sm font-semibold text-surface-800 dark:text-surface-100">
-                  {slide.slide_title || `Slide ${idx + 1}`}
-                </h5>
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <span className="text-[11px] font-mono font-bold px-1.5 text-surface-700 dark:text-surface-300">
+              {currentIndex + 1} / {totalSlides}
+            </span>
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={currentIndex === totalSlides - 1}
+              className="p-1 rounded text-surface-600 dark:text-surface-300 hover:bg-white dark:hover:bg-surface-700 disabled:opacity-40 disabled:hover:bg-transparent dark:disabled:hover:bg-transparent transition-all cursor-pointer"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={isDownloading}
+            className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-[10px] font-semibold shadow-sm transition-all duration-200 cursor-pointer disabled:opacity-60"
+          >
+            <Download className="w-3 h-3" />
+            <span>{isDownloading ? 'Exporting...' : 'Download PNG'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Slide Viewer Canvas */}
+      {currentSlide.image ? (
+          <img
+            src={currentSlide.image}
+            alt={`Slide ${currentIndex + 1}`}
+            className={`w-full ${isFullscreen ? 'h-[700px]' : 'h-[650px]'} object-contain rounded-xl  transition-all duration-300`}
+          />
+      ) : (
+        <div
+          ref={ref}
+          className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-[#070b13] via-[#0f172a] to-[#1e1b4b] text-slate-100 p-6 flex flex-col justify-between shadow-xl aspect-[16/9] w-full max-h-[50vh] md:max-h-[55vh] mx-auto shrink-0"
+        >
+          <div className="pointer-events-none absolute -top-32 -right-32 w-80 h-80 rounded-full bg-indigo-500/10 blur-[90px]"></div>
+          <div className="pointer-events-none absolute -bottom-32 -left-32 w-80 h-80 rounded-full bg-cyan-500/10 blur-[90px]"></div>
+
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3 relative z-10">
+            <div className="flex items-center gap-2">
+              <Presentation className="w-4 h-4 text-indigo-400" />
+              <div>
+                <h1 className="text-xs font-bold text-white leading-tight max-w-[200px] md:max-w-[400px] truncate">{parsed.title || 'Slide Deck'}</h1>
+                {parsed.audience && <p className="text-[9px] text-slate-400">Audience: {parsed.audience}</p>}
+              </div>
+            </div>
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/20 font-mono font-bold">
+              {currentIndex + 1} / {totalSlides}
+            </span>
+          </div>
+
+          <div className="flex-1 flex flex-col justify-center my-3 relative z-10 px-2 overflow-hidden">
+            <div>
+              <div className="flex items-center gap-2 border-b border-slate-800/60 pb-2 mb-3">
+                <div className="w-7 h-7 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                  <SlideIcon className="w-3.5 h-3.5 text-indigo-400" />
+                </div>
+                <h3 className="text-sm font-bold text-white tracking-tight leading-tight truncate">{currentSlide.slide_title}</h3>
               </div>
 
-              {Array.isArray(slide.key_points) && slide.key_points.length > 0 && (
-                <ul className="list-disc pl-5 text-xs text-surface-700 dark:text-surface-300 space-y-1">
-                  {slide.key_points.map((point, pIdx) => (
-                    <li key={`point-${idx}-${pIdx}`}>{point}</li>
+              {Array.isArray(currentSlide.key_points) && (
+                <ul className="space-y-2 pl-1 overflow-y-auto max-h-[22vh]">
+                  {currentSlide.key_points.map((pt, pIdx) => (
+                    <li key={pIdx} className="flex items-start gap-2 text-xs text-slate-300 leading-relaxed font-medium">
+                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-gradient-to-r from-indigo-400 to-cyan-400 shrink-0 shadow shadow-indigo-400/50"></span>
+                      <span>{pt}</span>
+                    </li>
                   ))}
                 </ul>
               )}
-
-              {slide.speaker_notes && (
-                <div className="mt-3 p-3 rounded-lg bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700">
-                  <p className="text-[11px] font-semibold text-surface-500 mb-1">Speaker notes</p>
-                  <p className="text-xs text-surface-700 dark:text-surface-300 whitespace-pre-wrap">{slide.speaker_notes}</p>
-                </div>
-              )}
             </div>
-          ))}
+          </div>
+
         </div>
+      )}
+
+      {/* Slide Thumbnails list below */}
+      <div className="flex flex-wrap gap-1.5 justify-center py-1 shrink-0">
+        {slides.map((s, idx) => {
+          const isActive = idx === currentIndex
+          return (
+            <button
+              key={idx}
+              onClick={() => setCurrentIndex(idx)}
+              className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-mono font-bold border transition-all cursor-pointer ${isActive
+                  ? 'bg-primary-500 border-primary-500 text-white shadow shadow-primary-500/30'
+                  : 'bg-white dark:bg-surface-900 border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-300 hover:border-primary-400 hover:text-primary-600'
+                }`}
+            >
+              {idx + 1}
+            </button>
+          )
+        })}
       </div>
     </div>
   )
@@ -865,7 +985,7 @@ function Base64ImagePreview({ answer, actionType }) {
         <img
           src={answer}
           alt={actionType}
-          className="w-full max-w-full h-auto rounded-xl shadow-md md:shadow-xl transition-all duration-500 hover:scale-[1.012]"
+          className="max-w-full max-h-full object-contain rounded-lg shadow-md"
         />
 
         {isHovered && (
@@ -885,7 +1005,7 @@ function Base64ImagePreview({ answer, actionType }) {
 }
 
 
-export default function ActionDetailRenderer({ actionType, answer }) {
+export default function ActionDetailRenderer({ actionType, answer, isFullscreen }) {
   const isBase64Image = typeof answer === 'string' && answer.trim().startsWith('data:image/')
 
   if (isBase64Image) {
@@ -901,7 +1021,7 @@ export default function ActionDetailRenderer({ actionType, answer }) {
   }
 
   if (actionType === 'slides') {
-    return <SlidesPreview answer={answer} />
+    return <SlidesPreview answer={answer} isFullscreen={isFullscreen} />
   }
 
   if (actionType === 'infographic') {

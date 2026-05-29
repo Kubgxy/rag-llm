@@ -28,13 +28,18 @@ class Settings(BaseSettings):
     OLLAMA_HOST: str = "http://localhost:11434"
     DEFAULT_LLM_MODEL: str = "iapp/chinda-qwen3-4b"
     ALTERNATIVE_LLM_MODEL: str = "scb10x/typhoon2.5-qwen3-4b"
-    ACTION_LLM_MODEL: str = "iapp/chinda-qwen3-4b"
-    LLM_REQUEST_TIMEOUT: float = 600.0
-    LLM_NUM_CTX: int = 4096
-    CPU_LLM_NUM_CTX: int = 4096
-    CPU_LLM_NUM_PREDICT: int = 256
-    LLM_RUNTIME_DEVICE: Literal["cpu", "gpu"] = "cpu"
+    ACTION_LLM_MODEL: str = "qwen2.5-coder:7b"
+    LLM_RUNTIME_DEVICE: Literal["cpu", "gpu"] = "gpu"
+
+
     OLLAMA_NUM_GPU: int = -1
+    # LLM_NUM_CTX: int = 4096
+    # CPU_LLM_NUM_CTX: int = 4096
+    # CPU_LLM_NUM_PREDICT: int = 256
+    LLM_NUM_CTX: int = 16384
+    CPU_LLM_NUM_CTX: int = 8192
+    CPU_LLM_NUM_PREDICT: int = 512
+    LLM_REQUEST_TIMEOUT: float = 600.0
 
     # Embedding settings
     EMBEDDING_MODEL: str = "BAAI/bge-m3"
@@ -48,7 +53,7 @@ class Settings(BaseSettings):
     MIN_TEXT_LENGTH: int = 100  # ถ้าข้อความน้อยกว่านี้จะใช้ OCR
 
     # Query settings
-    SIMILARITY_TOP_K: int = 3
+    SIMILARITY_TOP_K: int = 6 #4
     CPU_SIMILARITY_TOP_K: int = 2
     
     # Web search settings

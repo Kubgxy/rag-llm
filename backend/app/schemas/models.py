@@ -1,3 +1,4 @@
+import time
 from pydantic import BaseModel, Field
 from typing import Dict, List, Any, Optional, Literal
 from enum import Enum
@@ -143,6 +144,7 @@ class ActionGenerateResponse(BaseModel):
     thinking: Optional[str] = None
     model_name: str
     citations: Optional[List[Citation]] = None
+    created_at: float = Field(default_factory=lambda: time.time() * 1000)
 
 
 class ErrorResponse(BaseModel):
@@ -157,11 +159,23 @@ class WebSearchRequest(BaseModel):
         default="basic",
         description="ระดับความลึกของการค้นหา Tavily",
     )
-    include_answer: Literal["none", "basic", "advanced"] = Field(
-        default="none",
-        description="ระดับการให้คำตอบสรุปจาก Tavily",
+    topic: Literal["general", "news"] = Field(
+        default="general",
+        description="หัวข้อการค้นหา Tavily",
     )
-    max_results: int = Field(default=10, ge=1, le=20, description="จำนวนผลลัพธ์สูงสุด")
+    max_results: int = Field(default=5, ge=1, le=20, description="จำนวนผลลัพธ์สูงสุด")
+    time_range: Optional[Literal["day", "week", "month", "year"]] = Field(
+        default=None,
+        description="ช่วงเวลาที่ต้องการค้นหา",
+    )
+    start_date: Optional[str] = Field(
+        default=None,
+        description="วันที่เริ่มต้น (YYYY-MM-DD)",
+    )
+    end_date: Optional[str] = Field(
+        default=None,
+        description="วันที่สิ้นสุด (YYYY-MM-DD)",
+    )
 
 
 class WebSearchResult(BaseModel):
@@ -190,3 +204,4 @@ class WebImportResponse(BaseModel):
     total_selected: int
     message: str
     imported_sources: List[WebSearchResult] = []
+    summary: Optional[str] = None

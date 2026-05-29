@@ -14,8 +14,11 @@ async def web_search_preview(request: WebSearchRequest):
             session_id=request.session_id,
             query=request.query,
             search_depth=request.search_depth,
-            include_answer=request.include_answer,
             max_results=request.max_results,
+            topic=request.topic,
+            time_range=request.time_range,
+            start_date=request.start_date,
+            end_date=request.end_date,
         )
         return WebSearchResponse(
             query=request.query,
@@ -38,10 +41,12 @@ async def web_import_sources(request: WebImportRequest):
             session_id=request.session_id,
             urls=request.urls,
         )
-        imported_sources = document_processor.import_web_sources(
+        import_result = await document_processor.import_web_sources(
             session_id=request.session_id,
             sources=resolved_sources,
         )
+        imported_sources = import_result.get("imported_sources", [])
+        summary = import_result.get("summary", "")
         imported_count = len(imported_sources)
         return WebImportResponse(
             status="success",
@@ -50,6 +55,7 @@ async def web_import_sources(request: WebImportRequest):
             total_selected=len(request.urls),
             message=f"นำเข้าข้อมูลเว็บสำเร็จ {imported_count}/{len(request.urls)} แหล่ง",
             imported_sources=imported_sources,
+            summary=summary,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -146,16 +146,30 @@ export const searchWebPreview = async (
   query,
   sessionId,
   searchDepth = 'basic',
-  includeAnswer = 'none',
-  maxResults = 10
+  maxResults = 5,
+  topic = 'general',
+  timeRange = 'none',
+  startDate = '',
+  endDate = ''
 ) => {
-  const { data } = await api.post('/web-search/preview', {
+  const payload = {
     query,
     session_id: sessionId,
     search_depth: searchDepth,
-    include_answer: includeAnswer,
     max_results: maxResults,
-  })
+    topic,
+  }
+  if (timeRange && timeRange !== 'none') {
+    payload.time_range = timeRange
+  }
+  if (startDate) {
+    payload.start_date = startDate
+  }
+  if (endDate) {
+    payload.end_date = endDate
+  }
+
+  const { data } = await api.post('/web-search/preview', payload)
   return data
 }
 
@@ -193,6 +207,16 @@ export const generateKnowledgeAction = async (actionType, sessionId, options = {
   }
 
   const { data } = await api.post('/actions/generate', payload)
+  return data
+}
+
+/**
+ * [เพิ่มใหม่] Fetch all previously generated actions for a session
+ * GET /actions/session/${sessionId}
+ * @param {string} sessionId
+ */
+export const getSessionActions = async (sessionId) => {
+  const { data } = await api.get(`/actions/session/${sessionId}`)
   return data
 }
 

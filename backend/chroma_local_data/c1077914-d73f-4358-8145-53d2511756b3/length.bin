@@ -1,1 +1,0 @@
-invalid type: string "Copy ไฟล\u{e4c} .env.example → .env ส าหร\u{e31}บใช\u{e49}งานใน container \n2. ต\u{e34}ดต\u{e31}\u{e49}ง dependency ของ frontend/backend \n3. Build Docker Image ท\u{e31}\u{e49}ง frontend และ backend \n4. ตรวจสอบว\u{e48}าฐานข\u{e49}อม\u{e39}ลม\u{e35}ข\u{e49}อม\u{e39}ลหร\u{e37}

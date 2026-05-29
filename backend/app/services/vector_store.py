@@ -158,6 +158,14 @@ class VectorStoreManager:
                 
         return None
 
+    def close(self):
+        """ปิดการเชื่อมต่อหรือเคลียร์ทรัพยากร (เพื่อความปลอดภัยในการ shutdown)"""
+        print("🔌 [VectorStore] ปิดการเชื่อมต่อเรียบร้อย")
+        self.bm25_retrievers.clear()
+        self.bm25_nodes.clear()
+        self.client = None
+
+
 # Singleton instance
 vector_store_manager = VectorStoreManager()
 # Alias for backwards compatibility

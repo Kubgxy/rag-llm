@@ -90,10 +90,6 @@ export default function ActionResults() {
     setIsModalOpen(true)
   }
 
-  const handleOpenFullscreen = (itemId) => {
-    handleOpenDetail(itemId, true)
-  }
-
   const handleCloseDetail = () => {
     setIsModalOpen(false)
     setIsFullscreen(false)
@@ -112,14 +108,15 @@ export default function ActionResults() {
           `relative w-full flex flex-col overflow-hidden border transition-all duration-300 ` +
           `${isFullscreen
             ? 'h-full max-w-none rounded-none border-surface-700/50 bg-surface-50 dark:bg-surface-900'
-            : 'max-w-6xl h-[88vh] rounded-2xl border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 shadow-2xl'
-          }`
+            : 'max-w-7xl h-[94vh] rounded-2xl border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 shadow-2xl'
+          }`    
         }
         onClick={(event) => event.stopPropagation()}
       >
         <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_85%_10%,rgba(14,165,233,0.12),transparent_36%),radial-gradient(circle_at_10%_85%,rgba(99,102,241,0.10),transparent_32%)]" />
 
-        <div className="relative px-4 py-3 border-b border-surface-200 dark:border-surface-800 flex items-center justify-between shrink-0 bg-white/90 dark:bg-surface-950/95 backdrop-blur-sm">
+        {/* Header */}
+        <div className="relative px-4 py-3 border-b border-surface-200 dark:border-surface-800 flex items-center justify-between shrink-0 bg-white/90 dark:bg-surface-950/95 backdrop-blur-sm z-10">
           <div className="min-w-0 pr-4">
             <div className="inline-flex items-center gap-2 min-w-0">
               <SelectedIcon className="w-4 h-4 text-primary-600 dark:text-primary-400 shrink-0" />
@@ -136,7 +133,7 @@ export default function ActionResults() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
+            {/* <button
               onClick={() => setIsFullscreen((prev) => !prev)}
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-200 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
               aria-label={isFullscreen ? t('knowledgeActionExitFullscreen') : t('knowledgeActionEnterFullscreen')}
@@ -145,7 +142,7 @@ export default function ActionResults() {
               <span className="hidden sm:inline">
                 {isFullscreen ? t('knowledgeActionExitFullscreen') : t('knowledgeActionEnterFullscreen')}
               </span>
-            </button>
+            </button> */}
 
             <button
               onClick={handleCloseDetail}
@@ -157,16 +154,23 @@ export default function ActionResults() {
           </div>
         </div>
 
+        {/* Content Area */}
         <div
           className={
-            `relative flex-1 overflow-y-auto bg-surface-100/70 dark:bg-surface-950 space-y-3 ` +
-            `${isFullscreen ? 'p-6 md:p-8' : 'p-4'}`
+            `relative flex-1 bg-surface-100/70 dark:bg-surface-950 flex flex-col w-full ` +
+            // 🌟 จุดสำคัญ: ถ้าเป็น Fullscreen ให้ overflow-hidden (ปิดสกรอลล์) และจัดให้อยู่ตรงกลาง
+            `${isFullscreen 
+              ? 'overflow-hidden items-center justify-center p-4' 
+              : 'overflow-y-auto p-4 space-y-3'}`
           }
         >
-          <ActionDetailRenderer actionType={selected.actionType} answer={selected.answer} />
+          {/* หุ้ม Component เพื่อให้มันใช้พื้นที่เต็มที่แต่ไม่เกินขอบจอในโหมด Fullscreen */}
+          <div className={`w-full ${isFullscreen ? 'h-full flex items-center justify-center' : ''}`}>
+            <ActionDetailRenderer actionType={selected.actionType} answer={selected.answer} />
+          </div>
 
-          {Array.isArray(selected.citations) && selected.citations.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+          {/* {Array.isArray(selected.citations) && selected.citations.length > 0 && !isFullscreen && (
+            <div className="flex flex-wrap gap-2 pt-2">
               {selected.citations.map((cite, idx) => (
                 <span
                   key={`cite-${idx}`}
@@ -176,7 +180,7 @@ export default function ActionResults() {
                 </span>
               ))}
             </div>
-          )}
+          )} */}
         </div>
       </div>
     </div>
@@ -184,7 +188,7 @@ export default function ActionResults() {
 
   return (
     <div className="h-full min-h-0 flex flex-col gap-3">
-      <div className="space-y-2 overflow-y-auto  px-4">
+      <div className="space-y-2 overflow-y-auto px-4">
         {actionResults.map((item) => {
           const isActive = selected && selected.id === item.id
           const Icon = getActionIcon(item.actionType)
@@ -218,8 +222,6 @@ export default function ActionResults() {
                   {formatTime(item.createdAt)}
                 </div>
               </button>
-
-                
             </div>
           )
         })}

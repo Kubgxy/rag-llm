@@ -3,7 +3,7 @@ import { useDocumentStore } from '../../stores/documentStore.js'
 import { useLanguageStore } from '../../stores/languageStore.js'
 import { useSessionStore } from '../../stores/sessionStore.js'
 import { useToast } from '../ui/Toast.jsx'
-import { generateKnowledgeAction } from '../../services/api.js'
+import { generateKnowledgeAction, getSessionActions } from '../../services/api.js'
 import Summary from './Summary.jsx'
 import ActionResults from './ActionResults.jsx'
 import { FileText, GitBranch, Sparkles, BarChart3, Presentation, Image } from 'lucide-react'
@@ -20,6 +20,30 @@ export default function KnowledgeTabs() {
       setActiveTab('actions')
     }
   }, [activeTab, setActiveTab])
+
+  const sessionId = useSessionStore((state) => state.sessionId)
+
+  // ดึงข้อมูล Action ทั้งหมดของ session นี้จาก backend เมื่อโหลดแอปหรือสลับหน้าจอ (ป้องกันการหายไปเมื่อกด F5)
+  useEffect(() => {
+    if (!sessionId) return
+
+    const { setActionResults } = useDocumentStore.getState()
+    // ล้างข้อมูลเก่าทิ้งก่อนเพื่อป้องกันข้อมูลข้ามแชทรั่วไหล
+    setActionResults([])
+
+    const loadSavedActions = async () => {
+      try {
+        const results = await getSessionActions(sessionId)
+        if (results && results.length > 0) {
+          setActionResults(results)
+        }
+      } catch (err) {
+        console.error('Failed to load saved session actions:', err)
+      }
+    }
+
+    loadSavedActions()
+  }, [sessionId])
 
   const ACTIONS = [
     {
@@ -70,7 +94,7 @@ export default function KnowledgeTabs() {
         answer: data.answer,
         modelName: data.model_name,
         citations: data.citations || [],
-        createdAt: Date.now(),
+        createdAt: data.created_at || Date.now(),
       })
 
       setActiveTab('actions')
@@ -130,8 +154,8 @@ export default function KnowledgeTabs() {
 
       {/* One-click actions (show only in Actions tab) */}
       {activeTab === 'actions' && (
-        <div className="mt-3">
-          <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 mb-2 px-1">
+        <div className="mt-4">
+          <p className="text-[13px] font-bold text-surface-500 dark:text-surface-400 ml-4 mb-2 px-1">
             {t('knowledgeActionTitle')}
           </p>
           <div className="grid grid-cols-2 gap-2 px-4 mb-2">
@@ -144,7 +168,7 @@ export default function KnowledgeTabs() {
                   onClick={() => handleActionClick(action)}
                   disabled={Boolean(actionLoading)}
                   className={
-                    `px-3 py-2 rounded-lg text-xs font-medium border transition-all ` +
+                    `px-2 py-3 rounded-lg text-xs font-medium border transition-all ` +
                     `${isBusy
                       ? 'bg-primary-500 text-white border-primary-500 shadow-sm'
                       : 'bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-300 border-surface-200 dark:border-surface-700 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 hover:shadow-sm'
@@ -153,7 +177,7 @@ export default function KnowledgeTabs() {
                   }
                 >
                   <span className="inline-flex items-center gap-2">
-                    <Icon className="w-3.5 h-3.5" />
+                    <Icon className="w-8 h-8" />
                     {isBusy ? t('knowledgeActionGenerating') : action.label}
                   </span>
                 </button>

@@ -179,8 +179,13 @@ class LLMService:
             # บังคับ CPU ด้วย num_gpu=0; โหมด GPU ให้ Ollama ใช้ค่าตามระบบ/คอนฟิก
             if runtime_device == "cpu":
                 additional_kwargs["num_gpu"] = 0
-            elif settings.OLLAMA_NUM_GPU >= 0:
-                additional_kwargs["num_gpu"] = settings.OLLAMA_NUM_GPU
+                additional_kwargs["num_ctx"] = min(settings.LLM_NUM_CTX, settings.CPU_LLM_NUM_CTX)
+                additional_kwargs["num_predict"] = max(8192, settings.CPU_LLM_NUM_PREDICT)
+            else:
+                if settings.OLLAMA_NUM_GPU >= 0:
+                    additional_kwargs["num_gpu"] = settings.OLLAMA_NUM_GPU
+                # สำหรับ GPU ให้ปลดล็อกความยาวคำตอบ 8192 tokens เพื่อให้จัด JSON สไลด์หลายหน้าได้ยาวละเอียด ไม่โดนหั่นครึ่งทาง
+                additional_kwargs["num_predict"] = 8192
 
             print(f"   ⚙️ Ollama options: {additional_kwargs}")
 
@@ -196,7 +201,9 @@ class LLMService:
         self,
         query: str,
         session_id: str,
-        model_name: str
+        model_name: str,
+        search_query: str = None,
+        top_k: int = None
     ) -> Dict[str, Any]:
         """
         ถามคำถามโดยใช้ context จาก Vector Store
@@ -205,6 +212,8 @@ class LLMService:
             query: คำถามที่ต้องการถาม
             session_id: Session ID สำหรับดึง context
             model_name: ชื่อโมเดลที่ต้องการใช้
+            search_query: ข้อความเพิ่มเติมในการค้นหา
+            top_k: จำนวน chunk ที่ต้องการดึง (ถ้าระบุ จะใช้แทนค่า default ของระบบ)
 
         Returns:
             Dict with 'thinking' (optional) and 'answer' keys
@@ -214,9 +223,12 @@ class LLMService:
         start_time = time.time()
         print(f"💬 [Query] {session_id}: {query}")
         
-        # กำหนด top_k ตาม runtime
+        # กำหนด top_k ตาม runtime หรือ custom top_k
         current_runtime = runtime_manager.get_runtime()
-        if current_runtime == "cpu":
+        if top_k is not None:
+            effective_top_k = top_k
+            print(f"   🎯 Custom Mode: ใช้ custom top_k={effective_top_k} สำหรับสรุปภาพรวมเอกสาร")
+        elif current_runtime == "cpu":
             effective_top_k = settings.CPU_SIMILARITY_TOP_K
             print(f"   ⚡ CPU Mode: ใช้ top_k={effective_top_k} เพื่อลด context")
         else:
@@ -291,7 +303,7 @@ class LLMService:
                     llm=active_llm,
                     num_queries=1,
                     use_async=True,
-                    similarity_top_k=4
+                    similarity_top_k=effective_top_k
                 )
             else:
                 print("⚠️ [Search] ไม่พบ BM25 Index, ใช้เฉพาะ Vector Search ธรรมดา")
@@ -314,14 +326,18 @@ class LLMService:
         # Query
         print(f"🤖 [LLM] กำลังคิดคำตอบด้วย {model_name}...")
         t1 = time.time()
+
+        from llama_index.core import QueryBundle
+        target_query = QueryBundle(query_str=query, custom_embedding_strs=[search_query]) if search_query else query
+
         try:
-            response = await asyncio.to_thread(query_engine.query, query)
+            response = await asyncio.to_thread(query_engine.query, target_query)
         except Exception as e:
             # ถ้า GPU memory ไม่พอ ให้ fallback CPU อัตโนมัติและ retry 1 ครั้ง
             if self.fallback_to_cpu_if_needed(e):
                 llm = self.get_llm(model_name)
                 query_engine = build_query_engine(llm)
-                response = await asyncio.to_thread(query_engine.query, query)
+                response = await asyncio.to_thread(query_engine.query, target_query)
             else:
                 raise
         llm_time = time.time() - t1
