@@ -90,8 +90,9 @@ class DocumentProcessorService:
             print(f"✅ [Index] {filename} สร้าง Vector เสร็จแล้ว (เริ่มแชทได้เลย)!")
 
             # 4. สร้าง Summary (Background)
-            print(f"⏳ [LLM] กำลังสร้าง Summary...")
-            summary = asyncio.run(self._generate_summary(index))
+            print(f"⏳ [LLM] กำลังสร้าง Summary ของ {filename}...")
+            doc_index = VectorStoreIndex(nodes=nodes)
+            summary = asyncio.run(self._generate_summary(doc_index))
 
             # 5. อัพเดทสถานะเป็น completed
             doc_status[task_id] = {
@@ -113,7 +114,7 @@ class DocumentProcessorService:
     async def _generate_summary(self, index: VectorStoreIndex) -> str:
         """สร้างสรุปเนื้อหา"""
         try:
-            prompt = "สรุปหัวข้อและเนื้อหาสำคัญ เป็นภาษาไทยแบบกระชับ"
+            prompt = "วิเคราะห์และสรุปหัวข้อสำคัญและประเด็นสำคัญทั้งหมดของเอกสารนี้ เป็นภาษาไทยแบบกระชับ มีโครงสร้างชัดเจน และอ่านเข้าใจง่าย"
             llm = llm_service.get_llm(settings.DEFAULT_LLM_MODEL)
             query_engine = index.as_query_engine(llm=llm, similarity_top_k=3)
 
@@ -367,7 +368,8 @@ class DocumentProcessorService:
         # Generate summary of the imported web sources
         summary = ""
         try:
-            summary = await self._generate_summary(index)
+            web_index = VectorStoreIndex(nodes=nodes)
+            summary = await self._generate_summary(web_index)
         except Exception as e:
             print(f"⚠️ [Web Summary Error] {str(e)}")
 

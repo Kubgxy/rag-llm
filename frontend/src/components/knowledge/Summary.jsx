@@ -50,7 +50,7 @@ export default function Summary() {
   const { sections = [], metadata = {} } = summary
 
   return (
-    <div className="overflow-y-auto max-h-[calc(100vh-22rem)] pr-2 p-4">
+    <div className="overflow-y-auto max-h-[calc(100vh-15rem)] pr-2 p-4">
       {/* Metadata (word count + time) */}
       {metadata?.wordCount && (
         <div className="text-xs text-surface-500 dark:text-surface-400 mb-4 pb-4 border-b border-surface-200 dark:border-surface-700">

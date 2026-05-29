@@ -397,6 +397,47 @@ class LLMService:
             "citations": citations
         }
 
+    async def query_direct(
+        self,
+        query: str,
+        model_name: str
+    ) -> Dict[str, Any]:
+        """
+        ส่งคำถามไปยัง LLM โดยตรงโดยไม่มีการดึง Context จาก Vector Store
+        (เหมาะสำหรับ Step 2 ในการจัดโครงสร้าง JSON หรือการสรุปข้อมูลต่อยอด)
+        """
+        start_time = time.time()
+        print(f"🤖 [LLM Direct] กำลังประมวลผลด้วย {model_name}...")
+        llm = self.get_llm(model_name)
+        
+        try:
+            response = await asyncio.to_thread(llm.complete, query)
+        except Exception as e:
+            # ถ้า GPU memory ไม่พอ ให้ fallback CPU อัตโนมัติและ retry 1 ครั้ง
+            if self.fallback_to_cpu_if_needed(e):
+                llm = self.get_llm(model_name)
+                response = await asyncio.to_thread(llm.complete, query)
+            else:
+                raise
+
+        response_text = response.text if hasattr(response, "text") else str(response)
+        
+        # Extract thinking blocks from response
+        thinking = None
+        answer = response_text
+        if '<think>' in response_text and '</think>' in response_text:
+            start_idx = response_text.find('<think>')
+            end_idx = response_text.find('</think>') + len('</think>')
+            thinking = response_text[start_idx:end_idx]
+            answer = (response_text[:start_idx] + response_text[end_idx:]).strip()
+
+        print(f"✅ [LLM Direct] ประมวลผลเรียบร้อย ({time.time() - start_time:.2f}s)")
+        return {
+            "thinking": thinking,
+            "answer": answer,
+            "citations": []
+        }
+
 
 # Singleton instance
 llm_service = LLMService()

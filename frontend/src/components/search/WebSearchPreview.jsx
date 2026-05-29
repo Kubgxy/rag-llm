@@ -22,6 +22,7 @@ export default function WebSearchPreview() {
   const [timeRange, setTimeRange] = useState('none')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [country, setCountry] = useState('thailand')
   const [error, setError] = useState('')
 
   const {
@@ -63,7 +64,8 @@ export default function WebSearchPreview() {
         searchTopic,
         timeRange,
         startDate,
-        endDate
+        endDate,
+        country
       )
       setWebSearchResults({
         query: trimmed,
@@ -95,20 +97,26 @@ export default function WebSearchPreview() {
 
       // Save summary of the imported web sources
       if (data.summary) {
-        useDocumentStore.setState({
-          summary: {
-            sections: [{
-              id: 'section-web',
-              title: t('knowledgeTabSummary'),
-              content: data.summary,
-              type: 'overview',
-              icon: '📋',
-              order: 0
-            }],
-            metadata: {
-              wordCount: data.summary.split(/\s+/).length,
-              createdAt: Date.now()
-            }
+        const lang = useLanguageStore.getState().lang
+        const queryText = webSearchResults.query || 'Web Search'
+        const webSearchTitle = lang === 'th'
+          ? `🌐 สรุปเนื้อหาจากเว็บเสิร์จ: ${queryText}`
+          : `🌐 Web Search Summary: ${queryText}`
+        
+        const sectionId = `summary-web-${queryText.replace(/\s+/g, '_')}`
+
+        useDocumentStore.getState().updateSummary({
+          sections: [{
+            id: sectionId,
+            title: webSearchTitle,
+            content: data.summary,
+            type: 'overview',
+            icon: '🌐',
+            order: 0
+          }],
+          metadata: {
+            wordCount: data.summary.split(/\s+/).length,
+            createdAt: Date.now()
           }
         })
       }
@@ -213,6 +221,32 @@ export default function WebSearchPreview() {
 
       {isAdditionalFieldsOpen && (
         <div className="grid grid-cols-2 gap-3.5 p-3 rounded-xl bg-surface-50 dark:bg-surface-900 border border-surface-150 dark:border-surface-850 mt-1">
+          {/* Target Country */}
+          <div className="flex flex-col gap-1.5 col-span-2">
+            <span className="flex items-center gap-1 text-[11px] font-semibold text-surface-600 dark:text-surface-300">
+              {t('webSearchCountryLabel') || 'Target Country'}
+              <span
+                className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-surface-200 dark:bg-surface-800 text-[9px] text-surface-500 cursor-help select-none font-bold"
+                title={t('lang') === 'th' ? "เลือกประเทศเพื่อเน้นผลลัพธ์การค้นหาภาษาท้องถิ่น" : "Filter search results by target country"}
+              >
+                i
+              </span>
+            </span>
+            <select
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-800 text-xs text-surface-700 dark:text-surface-200 focus:outline-none focus:ring-1 focus:ring-primary-500/40 cursor-pointer"
+            >
+              <option value="thailand">{t('webSearchCountryThailand') || 'Thailand 🇹🇭'}</option>
+              <option value="us">{t('webSearchCountryUS') || 'United States 🇺🇸'}</option>
+              <option value="gb">{t('webSearchCountryUK') || 'United Kingdom 🇬🇧'}</option>
+              <option value="jp">{t('webSearchCountryJapan') || 'Japan 🇯🇵'}</option>
+              <option value="kr">{t('webSearchCountrySouthKorea') || 'South Korea 🇰🇷'}</option>
+              <option value="sg">{t('webSearchCountrySingapore') || 'Singapore 🇸🇬'}</option>
+              <option value="global">{t('webSearchCountryGlobal') || 'Global 🌐'}</option>
+            </select>
+          </div>
+
           {/* Search topic */}
           <div className="flex flex-col gap-1.5">
             <span className="flex items-center gap-1 text-[11px] font-semibold text-surface-600 dark:text-surface-300">
@@ -357,7 +391,7 @@ export default function WebSearchPreview() {
 
   return (
     <>
-      <div className="mt-4 rounded-2xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900/60 p-3 flex flex-col min-h-[240px] max-h-[50vh]">
+      <div className="mt-4 rounded-2xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900/60 p-3 flex flex-col min-h-[240px] max-h-[75vh]">
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
             {t('webSearchTitle')}

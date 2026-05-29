@@ -183,10 +183,9 @@ async def generate_action(request: ActionGenerateRequest):
         )
         
         print(f"🔄 [Step 2] กำลังให้ {coder_model_name} จัดโครงสร้าง JSON...")
-        # ใน Step 2 ไม่ต้องส่ง search_query แล้ว เพราะมี context ให้แล้ว
-        step2_result = await llm_service.query_with_context(
+        # ใน Step 2 ใช้ query_direct เพื่อประมวลผลตรงๆ ป้องกันการดึง Context ซ้ำซ้อนและลดการโหลดหน่วยความจำ GPU
+        step2_result = await llm_service.query_direct(
             query=final_prompt,
-            session_id=request.session_id,
             model_name=coder_model_name
         )
 

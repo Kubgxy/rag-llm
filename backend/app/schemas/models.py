@@ -176,6 +176,11 @@ class WebSearchRequest(BaseModel):
         default=None,
         description="วันที่สิ้นสุด (YYYY-MM-DD)",
     )
+    country: Optional[str] = Field(
+        default="thailand",
+        description="ประเทศที่ต้องการค้นหา (เช่น thailand, us, gb, jp, global)",
+    )
+
 
 
 class WebSearchResult(BaseModel):

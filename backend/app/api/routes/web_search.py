@@ -19,6 +19,7 @@ async def web_search_preview(request: WebSearchRequest):
             time_range=request.time_range,
             start_date=request.start_date,
             end_date=request.end_date,
+            country=request.country,
         )
         return WebSearchResponse(
             query=request.query,

@@ -78,25 +78,87 @@ export const useDocumentStore = create(
 
   setUploadResult: ({ fileName, fileSize, summary, nodes, edges }) => {
     const t = useLanguageStore.getState().t
-    // Handle both old format (string) and new format (object)
-    const processedSummary = typeof summary === 'string'
-      ? {
-          sections: [{
+
+    return set((state) => {
+      // 1. Determine the document name
+      const docName = fileName || 'Document'
+      const sectionId = `summary-${docName.replace(/\s+/g, '_')}`
+
+      const lang = useLanguageStore.getState().lang
+      const docTitle = lang === 'th'
+        ? `📄 สรุปเนื้อหาจากเอกสาร: ${docName}`
+        : `📄 Document Summary: ${docName}`
+
+      // 2. Format the new summary section
+      let newSections = []
+      if (typeof summary === 'string') {
+        newSections = [{
+          id: sectionId,
+          title: docTitle,
+          content: summary,
+          type: 'overview',
+          icon: '📄',
+          order: state.summary?.sections?.length || 0
+        }]
+      } else if (summary && Array.isArray(summary.sections)) {
+        newSections = summary.sections.map((s, idx) => ({
+          ...s,
+          id: s.id || `${sectionId}-${idx}`,
+          title: s.title || docTitle,
+        }))
+      } else if (summary && summary.content) {
+        newSections = [{
+          id: sectionId,
+          title: summary.title || docTitle,
+          content: summary.content,
+          type: summary.type || 'overview',
+          icon: summary.icon || '📄',
+          order: state.summary?.sections?.length || 0
+        }]
+      }
+
+      // 3. Get existing sections
+      let existingSections = []
+      if (state.summary) {
+        if (typeof state.summary === 'string') {
+          existingSections = [{
             id: 'section-default',
             title: t('knowledgeTabSummary'),
-            content: summary,
+            content: state.summary,
             type: 'overview',
             icon: '📋',
             order: 0
-          }],
-          metadata: {
-            wordCount: summary.split(/\s+/).length,
-            createdAt: Date.now()
-          }
+          }]
+        } else if (Array.isArray(state.summary.sections)) {
+          existingSections = [...state.summary.sections]
         }
-      : summary || null
+      }
 
-    return set((state) => {
+      // 4. Merge: If section with same ID exists, update it. Otherwise append.
+      const mergedSections = [...existingSections]
+      newSections.forEach(newSec => {
+        const index = mergedSections.findIndex(s => s.id === newSec.id)
+        if (index !== -1) {
+          mergedSections[index] = { ...mergedSections[index], ...newSec }
+        } else {
+          mergedSections.push(newSec)
+        }
+      })
+
+      // 5. Recalculate word count
+      const totalWordCount = mergedSections.reduce((sum, s) => {
+        const words = (s.content || '').trim().split(/\s+/).length
+        return sum + (s.content ? words : 0)
+      }, 0)
+
+      const processedSummary = {
+        sections: mergedSections,
+        metadata: {
+          wordCount: totalWordCount,
+          createdAt: Date.now()
+        }
+      }
+
       // 🔧 Fix: Append document instead of replacing
       const exists = state.documents.some(doc => doc.name === fileName)
       const updatedDocs = exists
@@ -106,10 +168,10 @@ export const useDocumentStore = create(
       return {
         documents: updatedDocs,
         summary: processedSummary,
-        mindmapNodes: nodes || [],
-        mindmapEdges: edges || [],
-        actionResults: [],
-        selectedActionResultId: null,
+        mindmapNodes: nodes || state.mindmapNodes || [],
+        mindmapEdges: edges || state.mindmapEdges || [],
+        actionResults: state.actionResults || [],
+        selectedActionResultId: state.selectedActionResultId,
         isUploading: false,
         uploadError: null,
       }
@@ -119,7 +181,54 @@ export const useDocumentStore = create(
   setActiveTab: (tab) => set({ activeTab: tab }),
 
   // For updating summary structure programmatically
-  updateSummary: (summaryData) => set({ summary: summaryData }),
+  updateSummary: (summaryData) => set((state) => {
+    // If incoming summary has sections, merge them
+    if (summaryData && Array.isArray(summaryData.sections)) {
+      let existingSections = []
+      if (state.summary) {
+        if (typeof state.summary === 'string') {
+          existingSections = [{
+            id: 'section-default',
+            title: 'สรุปเนื้อหา',
+            content: state.summary,
+            type: 'overview',
+            icon: '📋',
+            order: 0
+          }]
+        } else if (Array.isArray(state.summary.sections)) {
+          existingSections = [...state.summary.sections]
+        }
+      }
+
+      const mergedSections = [...existingSections]
+      summaryData.sections.forEach(newSec => {
+        const index = mergedSections.findIndex(s => s.id === newSec.id)
+        if (index !== -1) {
+          mergedSections[index] = { ...mergedSections[index], ...newSec }
+        } else {
+          mergedSections.push(newSec)
+        }
+      })
+
+      const totalWordCount = mergedSections.reduce((sum, s) => {
+        const words = (s.content || '').trim().split(/\s+/).length
+        return sum + (s.content ? words : 0)
+      }, 0)
+
+      return {
+        summary: {
+          sections: mergedSections,
+          metadata: {
+            wordCount: totalWordCount,
+            createdAt: Date.now()
+          }
+        }
+      }
+    }
+
+    // Default replacement if not mergeable
+    return { summary: summaryData }
+  }),
 
   // For updating mindmap structure programmatically
   updateMindmap: (nodes, edges) => set({

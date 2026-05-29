@@ -150,7 +150,8 @@ export const searchWebPreview = async (
   topic = 'general',
   timeRange = 'none',
   startDate = '',
-  endDate = ''
+  endDate = '',
+  country = 'thailand'
 ) => {
   const payload = {
     query,
@@ -158,6 +159,7 @@ export const searchWebPreview = async (
     search_depth: searchDepth,
     max_results: maxResults,
     topic,
+    country,
   }
   if (timeRange && timeRange !== 'none') {
     payload.time_range = timeRange
