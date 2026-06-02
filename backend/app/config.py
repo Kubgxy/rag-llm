@@ -21,8 +21,9 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "uploaded_docs"
     MAX_UPLOAD_SIZE: int = 50 * 1024 * 1024  # 50MB
 
-    # Chroma settings
-    CHROMA_PATH: str = "./chroma_local_data"
+    # PostgreSQL + pgvector
+    DATABASE_URL: str = "postgresql+asyncpg://raguser:ragpass@127.0.0.1:5433/ragllm"
+    DATABASE_URL_SYNC: str = "postgresql+psycopg2://raguser:ragpass@127.0.0.1:5433/ragllm"
 
     # Ollama settings
     OLLAMA_HOST: str = "http://localhost:11434"
@@ -56,6 +57,16 @@ class Settings(BaseSettings):
     # Query settings
     SIMILARITY_TOP_K: int = 6 #4
     CPU_SIMILARITY_TOP_K: int = 2
+
+    # JWT Auth
+    JWT_SECRET_KEY: str = "change-me-in-production-use-a-long-random-string"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # Conversation Memory
+    CONVERSATION_MEMORY_LIMIT: int = 15
+    CONVERSATION_MEMORY_MAX_TOKENS: int = 4096
     
     # Web search settings
     TAVILY_API_KEY: str = ""

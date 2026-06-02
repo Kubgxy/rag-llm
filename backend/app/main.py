@@ -1,3 +1,10 @@
+import sys
+# Enable UTF-8 console output for Windows to support emojis
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,6 +15,7 @@ import subprocess
 from app.config import settings
 from app.api import api_router
 from app.services import vector_store_service
+from app.database import init_db, close_db
 
 def ensure_playwright_installed():
     """จะรันดาวน์โหลดเบราว์เซอร์อัตโนมัติ เฉพาะตอนทำงานในโหมด Development (รันในเครื่อง) เท่านั้น"""
@@ -27,11 +35,17 @@ def ensure_playwright_installed():
 async def lifespan(app: FastAPI):
     """
     Lifespan event handler
-    - Startup: โหลด embedding model
+    - Startup: โหลด embedding model, สร้าง database tables
     - Shutdown: ปิดการเชื่อมต่อ
     """
     # Startup
     print("🚀 กำลัง startup backend...")
+
+    # สร้าง database tables
+    try:
+        await init_db()
+    except Exception as e:
+        print(f"⚠️ เกิดข้อผิดพลาดในการสร้าง Database: {str(e)}")
 
     ensure_playwright_installed()
 
@@ -50,6 +64,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     print("🛑 กำลัง shutdown backend...")
     vector_store_service.close()
+    await close_db()
     print("✅ Shutdown เรียบร้อย")
 
 

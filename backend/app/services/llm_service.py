@@ -204,7 +204,8 @@ class LLMService:
         model_name: str,
         search_query: str = None,
         top_k: int = None,
-        selected_files: list = None
+        selected_files: list = None,
+        memory_context: str = "",
     ) -> Dict[str, Any]:
         """
         ถามคำถามโดยใช้ context จาก Vector Store
@@ -315,12 +316,22 @@ class LLMService:
         from llama_index.core import PromptTemplate
         from llama_index.core.query_engine import RetrieverQueryEngine
 
+        # สร้าง prompt ที่รวม conversation memory (ถ้ามี)
+        memory_section = ""
+        if memory_context:
+            memory_section = (
+                "ประวัติการสนทนาที่ผ่านมา:\n"
+                f"{memory_context}\n"
+                "---------------------\n"
+            )
+
         QA_PROMPT_TMPL = (
+            f"{memory_section}"
             "ข้อมูลจากเอกสาร (Context information) อยู่ด้านล่างนี้\n"
             "---------------------\n"
             "{context_str}\n"
             "---------------------\n"
-            "คำสั่ง: จากข้อมูลเอกสารข้างต้น จงตอบคำถามต่อไปนี้\n"
+            "คำสั่ง: จากข้อมูลเอกสารข้างต้นและประวัติการสนทนา จงตอบคำถามต่อไปนี้\n"
             "หากข้อความจากเอกสารอ่านยากหรือมีการสะกดผิดจากการสแกน ให้พยายามตีความและสรุปใจความเท่าที่ทำได้ "
             "ไม่ต้องตอบว่า 'เนื้อหาอ่านไม่รู้เรื่อง' ยกเว้นว่าจะไม่มีข้อมูลที่เกี่ยวข้องกับคำถามจริงๆ\n"
             "ในคำตอบของคุณ ให้แนบการอ้างอิงแหล่งที่มาตามแบบฟอร์มนี้เสมอ: [หน้า X] หรือ [ชื่อไฟล์ หน้า X] หากข้อมูลมาจากหลายหน้าให้ระบุทั้งหมด\n"

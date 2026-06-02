@@ -23,6 +23,17 @@ from .models import (
     WebSearchResponse,
     WebImportRequest,
     WebImportResponse,
+    # Auth
+    UserRegisterRequest,
+    UserLoginRequest,
+    TokenResponse,
+    RefreshTokenRequest,
+    UserResponse,
+    # Sessions
+    ChatSessionCreateRequest,
+    ChatSessionUpdateRequest,
+    ChatSessionResponse,
+    ChatMessageResponse,
 )
 
 __all__ = [
@@ -50,4 +61,15 @@ __all__ = [
     "WebSearchResponse",
     "WebImportRequest",
     "WebImportResponse",
+    # Auth
+    "UserRegisterRequest",
+    "UserLoginRequest",
+    "TokenResponse",
+    "RefreshTokenRequest",
+    "UserResponse",
+    # Sessions
+    "ChatSessionCreateRequest",
+    "ChatSessionUpdateRequest",
+    "ChatSessionResponse",
+    "ChatMessageResponse",
 ]

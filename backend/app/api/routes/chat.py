@@ -1,17 +1,25 @@
-from fastapi import APIRouter, HTTPException, Request
+import uuid as uuid_mod
+from fastapi import APIRouter, HTTPException, Request, Depends
 import asyncio
 import re
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas import ChatRequest, ChatResponse, ChatTitleRequest, CompareRequest, CompareResponse
 from app.services import llm_service, runtime_manager
+from app.services import session_service
+from app.database import get_db
 
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
 
 @router.post("/single", response_model=ChatResponse)
-async def chat_single(request: ChatRequest, http_request: Request):
+async def chat_single(
+    request: ChatRequest,
+    http_request: Request,
+    db: AsyncSession = Depends(get_db),
+):
     """
-    ถามคำถามกับ LLM โดยใช้ context จาก Vector Store
+    ถามคำถามกับ LLM โดยใช้ context จาก Vector Store + conversation memory
 
     Args:
         request: ChatRequest ที่มี query, model_name, session_id
@@ -31,11 +39,32 @@ async def chat_single(request: ChatRequest, http_request: Request):
             print(f"⚠️ [Chat] Client disconnected before processing (RequestID: {request_id[:8]})")
             raise HTTPException(status_code=499, detail="Client closed request")
 
-        # ถามคำถาม (returns dict with thinking & answer)
+        session_uuid = uuid_mod.UUID(request.session_id)
+
+        # 1. บันทึก user message ลง DB
+        await session_service.save_message(
+            db, session_id=session_uuid, role="user",
+            content=request.query, model_name=request.model_name,
+        )
+
+        # 2. ดึง conversation memory
+        memory_context = await session_service.get_conversation_memory(db, session_id=session_uuid)
+
+        # 3. ถามคำถาม (พร้อม memory context)
         result = await llm_service.query_with_context(
             query=request.query,
             session_id=request.session_id,
-            model_name=request.model_name
+            model_name=request.model_name,
+            memory_context=memory_context,
+        )
+
+        # 4. บันทึก assistant response ลง DB
+        await session_service.save_message(
+            db, session_id=session_uuid, role="assistant",
+            content=result.get("answer", ""),
+            thinking=result.get("thinking"),
+            model_name=request.model_name,
+            citations=result.get("citations"),
         )
 
         return ChatResponse(
@@ -111,7 +140,11 @@ async def suggest_title(request: ChatTitleRequest):
 
 
 @router.post("/compare", response_model=CompareResponse)
-async def chat_compare(request: CompareRequest, http_request: Request):
+async def chat_compare(
+    request: CompareRequest,
+    http_request: Request,
+    db: AsyncSession = Depends(get_db),
+):
     """
     ถามคำถามเดียวกันกับ 2 โมเดลแล้วเปรียบเทียบ
 
@@ -136,17 +169,24 @@ async def chat_compare(request: CompareRequest, http_request: Request):
             print(f"⚠️ [Compare] Client disconnected before processing")
             raise HTTPException(status_code=499, detail="Client closed request")
 
+        session_uuid = uuid_mod.UUID(request.session_id)
+
+        # ดึง conversation memory
+        memory_context = await session_service.get_conversation_memory(db, session_id=session_uuid)
+
         # Query ทั้ง 2 โมเดลพร้อมกัน
         result_a, result_b = await asyncio.gather(
             llm_service.query_with_context(
                 query=request.query,
                 session_id=request.session_id,
-                model_name=request.model_a
+                model_name=request.model_a,
+                memory_context=memory_context,
             ),
             llm_service.query_with_context(
                 query=request.query,
                 session_id=request.session_id,
-                model_name=request.model_b
+                model_name=request.model_b,
+                memory_context=memory_context,
             )
         )
 

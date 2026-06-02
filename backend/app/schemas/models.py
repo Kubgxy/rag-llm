@@ -1,7 +1,9 @@
 import time
-from pydantic import BaseModel, Field
+import uuid
+from pydantic import BaseModel, Field, EmailStr
 from typing import Dict, List, Any, Optional, Literal
 from enum import Enum
+from datetime import datetime
 
 
 class DocumentStatus(str, Enum):
@@ -216,3 +218,83 @@ class WebImportResponse(BaseModel):
     message: str
     imported_sources: List[WebSearchResult] = []
     summary: Optional[str] = None
+
+
+# ===== Auth Schemas =====
+
+class UserRegisterRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=100)
+    email: str = Field(..., max_length=255)
+    password: str = Field(..., min_length=6, max_length=128)
+
+
+class UserLoginRequest(BaseModel):
+    username: str = Field(...)
+    password: str = Field(...)
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+class UserResponse(BaseModel):
+    id: uuid.UUID
+    username: str
+    email: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    role: str = "user"
+    is_active: bool = True
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ===== Session Schemas =====
+
+class ChatSessionCreateRequest(BaseModel):
+    title: Optional[str] = None
+    session_type: str = Field(default="notebook", description="notebook / arena")
+    model_name: Optional[str] = None
+
+
+class ChatSessionUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    is_archived: Optional[bool] = None
+
+
+class ChatMessageResponse(BaseModel):
+    id: uuid.UUID
+    session_id: uuid.UUID
+    role: str
+    content: str
+    thinking: Optional[str] = None
+    model_name: Optional[str] = None
+    citations: Optional[Any] = None
+    token_count: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ChatSessionResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    title: Optional[str] = None
+    session_type: str = "notebook"
+    model_name: Optional[str] = None
+    is_archived: bool = False
+    created_at: datetime
+    updated_at: datetime
+    messages: Optional[List[ChatMessageResponse]] = None
+
+    class Config:
+        from_attributes = True

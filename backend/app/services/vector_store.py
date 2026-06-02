@@ -1,10 +1,9 @@
-import chromadb
 import os
 import pickle
 import asyncio
 from llama_index.core import Settings, StorageContext
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.vector_stores.postgres import PGVectorStore
 from llama_index.retrievers.bm25 import BM25Retriever
 from pythainlp.tokenize import word_tokenize
 from app.config import settings
@@ -16,19 +15,18 @@ def thai_tokenizer(text: str):
 
 
 class VectorStoreManager:
-    """Service สำหรับจัดการ Chroma Vector Store"""
+    """Service สำหรับจัดการ pgvector Vector Store ผ่าน LlamaIndex"""
 
     def __init__(self):
-        self.client = None
         self.embedding_model = None
-        
+
         # In-memory store for BM25 Retrievers
         self.bm25_retrievers = {}
         self.bm25_nodes = {}
         # Path for persisting BM25 retrievers
-        self.bm25_persist_dir = os.path.join(os.path.dirname(settings.CHROMA_PATH), "bm25")
+        self.bm25_persist_dir = os.path.join("data", "bm25")
         os.makedirs(self.bm25_persist_dir, exist_ok=True)
-        
+
         self._initialize_embedding()
 
     def _initialize_embedding(self):
@@ -40,16 +38,21 @@ class VectorStoreManager:
         Settings.embed_model = self.embedding_model
         print("✅ Embedding Model พร้อมใช้งาน")
 
-    def get_client(self) -> chromadb.ClientAPI:
-        """สร้างหรือคืนค่า Chroma Client"""
-        if self.client is None:
-            print(f"🔗 กำลังเชื่อมต่อ ChromaDB ที่: {settings.CHROMA_PATH}")
-            self.client = chromadb.PersistentClient(path=settings.CHROMA_PATH)
-        return self.client
+    def _get_vector_store(self, table_name: str = "document_embeddings") -> PGVectorStore:
+        """สร้าง PGVectorStore instance"""
+        return PGVectorStore.from_params(
+            database=settings.DATABASE_URL_SYNC.split("/")[-1],
+            host=settings.DATABASE_URL_SYNC.split("@")[1].split(":")[0],
+            port=settings.DATABASE_URL_SYNC.split(":")[-1].split("/")[0],
+            user=settings.DATABASE_URL_SYNC.split("://")[1].split(":")[0],
+            password=settings.DATABASE_URL_SYNC.split(":")[2].split("@")[0],
+            table_name=table_name,
+            embed_dim=1024,  # bge-m3 = 1024 dimensions
+        )
 
     def get_session_storage(self, session_id: str, for_sync: bool = False) -> StorageContext:
         """
-        สร้าง Storage Context สำหรับ session นั้นๆ
+        สร้าง Storage Context สำหรับ session นั้นๆ ผ่าน pgvector
 
         Args:
             session_id: Session ID ที่ต้องการสร้าง collection
@@ -58,25 +61,21 @@ class VectorStoreManager:
         Returns:
             StorageContext ที่พร้อมใช้งาน
         """
-        collection_name = f"chat_{session_id.lower().replace('-', '_')}"
+        # ใช้ table name เดียวแชร์กัน โดยแยกข้อมูลด้วย metadata.session_id
+        table_name = f"embeddings_{session_id.lower().replace('-', '_')}"
         print(f"📦 [VectorStore] สร้าง storage สำหรับ session: {session_id}")
-        print(f"   Collection name: {collection_name}")
+        print(f"   Table name: {table_name}")
 
-        client = self.get_client()
-        chroma_collection = client.get_or_create_collection(name=collection_name)
-        
-        vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+        vector_store = self._get_vector_store(table_name=table_name)
 
-        print(f"✅ [VectorStore] สร้าง vector store เรียบร้อย")
+        print(f"✅ [VectorStore] สร้าง pgvector store เรียบร้อย")
         return StorageContext.from_defaults(vector_store=vector_store)
 
     def save_bm25_retriever(self, session_id: str, retriever: BM25Retriever):
         """บันทึก BM25 Retriever สำหรับ session นั้น"""
         self.bm25_retrievers[session_id] = retriever
-        # Save exact dict state instead of pickling the whole C-Object retriever
         persist_path = os.path.join(self.bm25_persist_dir, f"bm25_{session_id}.pkl")
         try:
-            # Save the object using its built-in persist method if available, else pickle
             if hasattr(retriever, 'persist'):
                 retriever.persist(persist_path)
             else:
@@ -137,12 +136,10 @@ class VectorStoreManager:
         persist_path = os.path.join(self.bm25_persist_dir, f"bm25_{session_id}.pkl")
         if os.path.exists(persist_path):
             try:
-                # ถ้า path ที่เซฟเป็น Directory (จากการใช้ retriever.persist)
                 if os.path.isdir(persist_path):
                     from llama_index.retrievers.bm25 import BM25Retriever
                     retriever = BM25Retriever.from_persist_dir(persist_path)
                 else:
-                    # กรณีเป็นไฟล์ Pickle ธรรมดา
                     with open(persist_path, 'rb') as f:
                         retriever = pickle.load(f)
                     
@@ -159,15 +156,13 @@ class VectorStoreManager:
         return None
 
     def close(self):
-        """ปิดการเชื่อมต่อหรือเคลียร์ทรัพยากร (เพื่อความปลอดภัยในการ shutdown)"""
+        """ปิดการเชื่อมต่อหรือเคลียร์ทรัพยากร"""
         print("🔌 [VectorStore] ปิดการเชื่อมต่อเรียบร้อย")
         self.bm25_retrievers.clear()
         self.bm25_nodes.clear()
-        self.client = None
 
 
 # Singleton instance
 vector_store_manager = VectorStoreManager()
 # Alias for backwards compatibility
 vector_store_service = vector_store_manager
-

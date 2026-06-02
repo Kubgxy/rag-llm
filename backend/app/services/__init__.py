@@ -3,6 +3,8 @@ from .llm_service import llm_service
 from .document_processor import document_processor
 from .runtime_manager import runtime_manager
 from .web_search_service import web_search_service
+from . import auth_service
+from . import session_service
 
 __all__ = [
     "vector_store_service",
@@ -10,4 +12,6 @@ __all__ = [
     "document_processor",
     "runtime_manager",
     "web_search_service",
+    "auth_service",
+    "session_service",
 ]

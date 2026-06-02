@@ -111,6 +111,139 @@ class DocumentProcessorService:
                 "mindmap": {"nodes": [], "edges": []}
             }
 
+    async def process_document_db(
+        self,
+        document_id: str,
+        file_path: str,
+        filename: str,
+        session_id: str
+    ):
+        """
+        ประมวลผลเอกสารแบบ Background Task และบันทึก/อัปเดตลงตาราง documents ใน PostgreSQL
+        """
+        from app.database import async_session
+        from app.db_models import Document as DbDocument
+        import uuid
+
+        doc_uuid = uuid.UUID(document_id)
+        task_id = f"{session_id}_{filename}"
+
+        # ตั้งค่าเริ่มต้นใน in-memory status
+        doc_status[task_id] = {
+            "status": DocumentStatus.PROCESSING,
+            "summary": "⏳ กำลังประมวลผลไฟล์...",
+            "mindmap": {"nodes": [], "edges": []}
+        }
+
+        try:
+            # 1. สกัดข้อความแยกตามหน้า
+            print(f"\n📄 [Task DB] เริ่มสกัดข้อความจาก: {filename}")
+            pages_text = extract_text_by_page(file_path)
+
+            if not pages_text:
+                raise ValueError("ไม่สามารถสกัดข้อความจากไฟล์ได้ หรือไฟล์ว่างเปล่า")
+
+            # นับจำนวนหน้า
+            page_count = len(pages_text)
+
+            # อัปเดต page_count ใน DB
+            async with async_session() as db:
+                db_doc = await db.get(DbDocument, doc_uuid)
+                if db_doc:
+                    db_doc.page_count = page_count
+                    await db.commit()
+
+            # สร้าง Document ตามจำนวนหน้า
+            docs = []
+            for page_num, text in pages_text.items():
+                if len(text.strip()) > 5:
+                    doc = Document(
+                        text=text,
+                        metadata={
+                            "file_name": filename, 
+                            "session_id": session_id,
+                            "page_label": str(page_num)
+                        }
+                    )
+                    docs.append(doc)
+
+            # 2. สร้าง Vector Index และ BM25
+            print(f"🔍 [Task DB] กำลังสร้าง Vector Index และ BM25 ({len(docs)} chunks/pages)...")
+            storage_context = vector_store_service.get_session_storage(session_id)
+            from app.services.vector_store import thai_tokenizer
+            splitter = SentenceSplitter(chunk_size=1500, chunk_overlap=150, tokenizer=thai_tokenizer)
+            nodes = splitter.get_nodes_from_documents(docs)
+            index = VectorStoreIndex(
+                nodes=nodes,
+                storage_context=storage_context
+            )
+            
+            # 2.5 สร้าง BM25 Retriever
+            try:
+                if nodes:
+                    vector_store_service.extend_bm25_nodes(session_id, nodes)
+                    print(f"✅ [BM25 DB] สร้าง Keyword Index สำหรับ {filename} เรียบร้อย")
+                else:
+                    print(f"⚠️ [BM25 DB] เอกสารว่างเปล่า หรือไม่มีเนื้อหาเพียงพอสำหรับสร้าง BM25")
+            except Exception as e:
+                print(f"⚠️ [BM25 DB] ล้มเหลวในการสร้าง BM25 Retriever: {e}")
+
+            # 3. อัปเดตสถานะเป็น ready_for_chat
+            doc_status[task_id] = {
+                "status": DocumentStatus.READY_FOR_CHAT,
+                "summary": "⏳ AI กำลังสรุปเนื้อหาอยู่เบื้องหลัง คุณสามารถเริ่มพิมพ์ถามตอบได้เลย...",
+                "mindmap": {"nodes": [], "edges": []}
+            }
+            
+            async with async_session() as db:
+                db_doc = await db.get(DbDocument, doc_uuid)
+                if db_doc:
+                    db_doc.status = DocumentStatus.READY_FOR_CHAT.value if hasattr(DocumentStatus.READY_FOR_CHAT, 'value') else DocumentStatus.READY_FOR_CHAT
+                    await db.commit()
+            
+            print(f"✅ [Index DB] {filename} สร้าง Vector เสร็จแล้ว (เริ่มแชทได้เลย)!")
+
+            # 4. สร้าง Summary และ Mindmap (Background)
+            print(f"⏳ [LLM DB] กำลังสร้าง Summary ของ {filename}...")
+            doc_index = VectorStoreIndex(nodes=nodes)
+            summary = await self._generate_summary(doc_index)
+
+            print(f"⏳ [LLM DB] กำลังสร้าง Mindmap ของ {filename}...")
+            mindmap = await self._generate_mindmap(doc_index)
+
+            # 5. อัปเดตสถานะเป็น completed ใน DB และ in-memory
+            doc_status[task_id] = {
+                "status": DocumentStatus.COMPLETED,
+                "summary": summary,
+                "mindmap": mindmap
+            }
+
+            async with async_session() as db:
+                db_doc = await db.get(DbDocument, doc_uuid)
+                if db_doc:
+                    db_doc.status = DocumentStatus.COMPLETED.value if hasattr(DocumentStatus.COMPLETED, 'value') else DocumentStatus.COMPLETED
+                    db_doc.summary = summary
+                    db_doc.mindmap = mindmap
+                    await db.commit()
+
+            print(f"🎉 [Task DB] ประมวลผล {filename} เสร็จสิ้น 100%!\n")
+
+        except Exception as e:
+            print(f"❌ [Task DB Error] {str(e)}")
+            doc_status[task_id] = {
+                "status": DocumentStatus.ERROR,
+                "message": str(e),
+                "summary": "",
+                "mindmap": {"nodes": [], "edges": []}
+            }
+
+            async with async_session() as db:
+                db_doc = await db.get(DbDocument, doc_uuid)
+                if db_doc:
+                    db_doc.status = DocumentStatus.ERROR.value if hasattr(DocumentStatus.ERROR, 'value') else DocumentStatus.ERROR
+                    db_doc.summary = f"เกิดข้อผิดพลาด: {str(e)}"
+                    await db.commit()
+
     async def _generate_summary(self, index: VectorStoreIndex) -> str:
         """สร้างสรุปเนื้อหา"""
         try:
