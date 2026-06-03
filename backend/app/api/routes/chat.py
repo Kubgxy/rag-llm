@@ -7,6 +7,8 @@ from app.schemas import ChatRequest, ChatResponse, ChatTitleRequest, CompareRequ
 from app.services import llm_service, runtime_manager
 from app.services import session_service
 from app.database import get_db
+from app.db_models import User
+from app.services.auth_service import get_current_user
 
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -17,6 +19,7 @@ async def chat_single(
     request: ChatRequest,
     http_request: Request,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     ถามคำถามกับ LLM โดยใช้ context จาก Vector Store + conversation memory
@@ -27,6 +30,14 @@ async def chat_single(
     Returns:
         ChatResponse พร้อมคำตอบจาก LLM (อาจมี thinking blocks)
     """
+    session_uuid = uuid_mod.UUID(request.session_id)
+    # ตรวจสอบสิทธิ์ความเป็นเจ้าของของเซสชัน
+    session = await session_service.get_session(
+        db, session_id=session_uuid, user_id=current_user.id
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="ไม่พบแชทเซสชันนี้")
+
     # ลงทะเบียน request สำหรับ tracking
     request_id = runtime_manager.register_request()
     
@@ -91,7 +102,11 @@ async def chat_single(
 
 
 @router.post("/suggest-title")
-async def suggest_title(request: ChatTitleRequest):
+async def suggest_title(
+    request: ChatTitleRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     สร้างชื่อแชทที่กระชับจากประโยคแรกของผู้ใช้
 
@@ -101,6 +116,14 @@ async def suggest_title(request: ChatTitleRequest):
     Returns:
         JSON with 'title' key (max 30 chars)
     """
+    if request.session_id:
+        session_uuid = uuid_mod.UUID(request.session_id)
+        session = await session_service.get_session(
+            db, session_id=session_uuid, user_id=current_user.id
+        )
+        if session is None:
+            raise HTTPException(status_code=404, detail="ไม่พบแชทเซสชันนี้")
+
     try:
         print(f"📝 [API] กำลังสร้างชื่อแชทจาก: {request.query[:50]}...")
 
@@ -144,6 +167,7 @@ async def chat_compare(
     request: CompareRequest,
     http_request: Request,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     ถามคำถามเดียวกันกับ 2 โมเดลแล้วเปรียบเทียบ
@@ -154,6 +178,14 @@ async def chat_compare(
     Returns:
         CompareResponse พร้อมคำตอบจากทั้ง 2 โมเดล
     """
+    session_uuid = uuid_mod.UUID(request.session_id)
+    # ตรวจสอบสิทธิ์ความเป็นเจ้าของของเซสชัน
+    session = await session_service.get_session(
+        db, session_id=session_uuid, user_id=current_user.id
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="ไม่พบแชทเซสชันนี้")
+
     # ลงทะเบียน request สำหรับ tracking
     request_id = runtime_manager.register_request()
     

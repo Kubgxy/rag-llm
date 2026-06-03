@@ -1,24 +1,27 @@
 import axios from 'axios'
+import { useAuthStore } from '../stores/authStore.js'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
-  timeout: 600000, // โหมด CPU อาจใช้เวลานาน ต้องกัน frontend timeout ตัดก่อน
-  // [เพิ่ม] Header นี้สำคัญมากสำหรับทะลวงหน้าเตือนของ Ngrok
+  timeout: 600000,
   headers: {
     'ngrok-skip-browser-warning': 'true',
   }
 })
 
-// Request interceptor (can add auth tokens later)
+// ─── Request interceptor: attach JWT token ───
 api.interceptors.request.use(
   (config) => {
+    const token = useAuthStore.getState().accessToken
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
     console.log('🔵 [API Request]', {
       method: config.method?.toUpperCase(),
       url: config.url,
       baseURL: config.baseURL,
       fullURL: `${config.baseURL}${config.url}`,
       data: config.data,
-      headers: config.headers
     })
     return config
   },
@@ -28,23 +31,85 @@ api.interceptors.request.use(
   }
 )
 
-// Response interceptor for unified error handling
+// ─── Response interceptor: handle 401 + auto-refresh ───
+let isRefreshing = false
+let failedQueue = []
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error)
+    } else {
+      resolve(token)
+    }
+  })
+  failedQueue = []
+}
+
 api.interceptors.response.use(
   (response) => {
     console.log('✅ [API Response]', {
       status: response.status,
-      statusText: response.statusText,
       url: response.config.url,
-      data: response.data
     })
     return response
   },
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config
+
+    // If 401 and not already retried and not an auth endpoint
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/auth/')
+    ) {
+      if (isRefreshing) {
+        // Queue the request while refreshing
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`
+          return api(originalRequest)
+        })
+      }
+
+      originalRequest._retry = true
+      isRefreshing = true
+
+      const refreshToken = useAuthStore.getState().refreshToken
+      if (!refreshToken) {
+        useAuthStore.getState().logout()
+        isRefreshing = false
+        processQueue(error)
+        window.location.href = '/auth'
+        return Promise.reject(error)
+      }
+
+      try {
+        const { data } = await axios.post(
+          `${api.defaults.baseURL}/auth/refresh`,
+          { refresh_token: refreshToken },
+          { headers: { 'ngrok-skip-browser-warning': 'true' } }
+        )
+
+        useAuthStore.getState().setTokens(data.access_token, data.refresh_token)
+        originalRequest.headers.Authorization = `Bearer ${data.access_token}`
+
+        processQueue(null, data.access_token)
+        return api(originalRequest)
+      } catch (refreshError) {
+        useAuthStore.getState().logout()
+        processQueue(refreshError)
+        window.location.href = '/auth'
+        return Promise.reject(refreshError)
+      } finally {
+        isRefreshing = false
+      }
+    }
+
     console.error('❌ [API Error]', {
       message: error.message,
-      code: error.code,
       status: error.response?.status,
-      statusText: error.response?.statusText,
       url: error.config?.url,
       data: error.response?.data
     })
@@ -58,11 +123,118 @@ api.interceptors.response.use(
   }
 )
 
+
+// ═══════════════════════════════════════════════
+// AUTH API
+// ═══════════════════════════════════════════════
+
+/**
+ * Register a new user
+ * POST /auth/register
+ */
+export const registerApi = async (username, email, password) => {
+  const { data } = await api.post('/auth/register', { username, email, password })
+  return data
+}
+
+/**
+ * Login and get JWT tokens
+ * POST /auth/login
+ */
+export const loginApi = async (username, password) => {
+  const { data } = await api.post('/auth/login', { username, password })
+  return data
+}
+
+/**
+ * Refresh access token
+ * POST /auth/refresh
+ */
+export const refreshTokenApi = async (refreshToken) => {
+  const { data } = await api.post('/auth/refresh', { refresh_token: refreshToken })
+  return data
+}
+
+/**
+ * Get current user profile
+ * GET /auth/me
+ */
+export const getMeApi = async () => {
+  const { data } = await api.get('/auth/me')
+  return data
+}
+
+
+// ═══════════════════════════════════════════════
+// SESSION API
+// ═══════════════════════════════════════════════
+
+/**
+ * Create a new chat session
+ * POST /sessions
+ */
+export const createSessionApi = async (title = null, sessionType = 'notebook', modelName = null) => {
+  const { data } = await api.post('/sessions', {
+    title,
+    session_type: sessionType,
+    model_name: modelName,
+  })
+  return data
+}
+
+/**
+ * List all user sessions
+ * GET /sessions
+ */
+export const listSessionsApi = async (includeArchived = false) => {
+  const { data } = await api.get('/sessions', { params: { include_archived: includeArchived } })
+  return data
+}
+
+/**
+ * Get a single session with messages
+ * GET /sessions/{id}
+ */
+export const getSessionApi = async (sessionId) => {
+  const { data } = await api.get(`/sessions/${sessionId}`)
+  return data
+}
+
+/**
+ * Update session title or archive status
+ * PATCH /sessions/{id}
+ */
+export const updateSessionApi = async (sessionId, updates = {}) => {
+  const { data } = await api.patch(`/sessions/${sessionId}`, updates)
+  return data
+}
+
+/**
+ * Delete a session
+ * DELETE /sessions/{id}
+ */
+export const deleteSessionApi = async (sessionId) => {
+  const { data } = await api.delete(`/sessions/${sessionId}`)
+  return data
+}
+
+/**
+ * Get messages of a session
+ * GET /sessions/{id}/messages
+ */
+export const getSessionMessagesApi = async (sessionId, limit = 100, offset = 0) => {
+  const { data } = await api.get(`/sessions/${sessionId}/messages`, { params: { limit, offset } })
+  return data
+}
+
+
+// ═══════════════════════════════════════════════
+// UPLOAD API
+// ═══════════════════════════════════════════════
+
 /**
  * Upload a PDF document
  * POST /upload
- * @param {File} file - PDF file to upload
- * @param {string} sessionId - Session ID for multi-session support
  */
 export const uploadDocument = async (file, sessionId) => {
   const formData = new FormData()
@@ -76,22 +248,22 @@ export const uploadDocument = async (file, sessionId) => {
 }
 
 /**
- * [เพิ่มใหม่] Check document processing status
+ * Check document processing status
  * GET /upload/status/{session_id}/{filename}
- * @param {string} sessionId - Session ID
- * @param {string} filename
  */
 export const checkDocumentStatus = async (sessionId, filename) => {
   const { data } = await api.get(`/upload/status/${sessionId}/${filename}`)
   return data
 }
 
+
+// ═══════════════════════════════════════════════
+// CHAT API
+// ═══════════════════════════════════════════════
+
 /**
  * Single-model chat
  * POST /chat/single
- * @param {string} query - User query
- * @param {string} modelName - Model name to use
- * @param {string} sessionId - Session ID
  */
 export const chatSingle = async (query, modelName, sessionId) => {
   const { data } = await api.post('/chat/single', {
@@ -105,10 +277,6 @@ export const chatSingle = async (query, modelName, sessionId) => {
 /**
  * Compare models (arena)
  * POST /chat/compare
- * @param {string} query - User query
- * @param {string} modelA - Model A name
- * @param {string} modelB - Model B name
- * @param {string} sessionId - Session ID
  */
 export const chatCompare = async (query, modelA, modelB, sessionId) => {
   const { data } = await api.post('/chat/compare', {
@@ -123,24 +291,27 @@ export const chatCompare = async (query, modelA, modelB, sessionId) => {
 /**
  * Suggest chat title from first user message
  * POST /chat/suggest-title
- * @param {string} query - First user message
- * @param {string} modelName - Optional: model to use for title generation
  */
-export const suggestTitle = async (query, modelName = 'typhoon-2.5') => {
-  const { data } = await api.post('/chat/suggest-title', {
+export const suggestTitle = async (query, modelName = 'typhoon-2.5', sessionId = null) => {
+  const payload = {
     query,
     model_name: modelName,
-  })
+  }
+  if (sessionId) {
+    payload.session_id = sessionId
+  }
+  const { data } = await api.post('/chat/suggest-title', payload)
   return data
 }
 
+
+// ═══════════════════════════════════════════════
+// WEB SEARCH API
+// ═══════════════════════════════════════════════
+
 /**
- * Search web sources with Tavily and return preview list
+ * Search web sources with Tavily
  * POST /web-search/preview
- * @param {string} query
- * @param {'basic'|'advanced'} searchDepth
- * @param {'none'|'basic'|'advanced'} includeAnswer
- * @param {number} maxResults
  */
 export const searchWebPreview = async (
   query,
@@ -178,8 +349,6 @@ export const searchWebPreview = async (
 /**
  * Import selected web sources into RAG vector store
  * POST /web-search/import
- * @param {string[]} urls
- * @param {string} sessionId
  */
 export const importWebSources = async (urls, sessionId) => {
   const { data } = await api.post('/web-search/import', {
@@ -189,12 +358,14 @@ export const importWebSources = async (urls, sessionId) => {
   return data
 }
 
+
+// ═══════════════════════════════════════════════
+// ACTIONS API
+// ═══════════════════════════════════════════════
+
 /**
- * Generate specialized knowledge action result using dedicated action model
+ * Generate specialized knowledge action
  * POST /actions/generate
- * @param {'mindmap'|'chart'|'slides'|'infographic'} actionType
- * @param {string} sessionId
- * @param {{ userGoal?: string, language?: 'th'|'en', modelName?: string }} options
  */
 export const generateKnowledgeAction = async (actionType, sessionId, options = {}) => {
   const payload = {
@@ -221,14 +392,18 @@ export const generateKnowledgeAction = async (actionType, sessionId, options = {
 }
 
 /**
- * [เพิ่มใหม่] Fetch all previously generated actions for a session
+ * Fetch all previously generated actions for a session
  * GET /actions/session/${sessionId}
- * @param {string} sessionId
  */
 export const getSessionActions = async (sessionId) => {
   const { data } = await api.get(`/actions/session/${sessionId}`)
   return data
 }
+
+
+// ═══════════════════════════════════════════════
+// RUNTIME API
+// ═══════════════════════════════════════════════
 
 /**
  * Get global runtime device
@@ -242,10 +417,6 @@ export const getRuntimeStatus = async () => {
 /**
  * Set global runtime device
  * PUT /runtime/device
- * @param {string} device - cpu|gpu
- * @param {string[]} modelNames - optional models to warmup after switch
- * @param {boolean} waitForPending - wait for pending requests to complete
- * @param {boolean} force - force switch without waiting
  */
 export const setRuntimeDevice = async (device, modelNames = [], waitForPending = true, force = false) => {
   const payload = { 
@@ -261,7 +432,7 @@ export const setRuntimeDevice = async (device, modelNames = [], waitForPending =
 }
 
 /**
- * Get restart/switch status for polling
+ * Get restart/switch status
  * GET /runtime/restart-status
  */
 export const getRestartStatus = async () => {
@@ -272,8 +443,6 @@ export const getRestartStatus = async () => {
 /**
  * Trigger backend restart
  * POST /runtime/restart
- * @param {string} device - optional new device after restart
- * @param {string[]} modelNames - optional models to warmup
  */
 export const restartBackend = async (device = null, modelNames = []) => {
   const payload = {}

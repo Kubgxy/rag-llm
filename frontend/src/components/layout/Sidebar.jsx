@@ -15,16 +15,16 @@ export default function Sidebar({ isCollapsed, toggleSidebar }) {
   const navigate = useNavigate()
 
   const NAV_LINKS = [
-    { path: '/', label: t('workspace'), icon: BookOpen },
+    { path: '/workspace', label: t('workspace'), icon: BookOpen },
     { path: '/arena', label: t('arena'), icon: Swords },
   ]
 
-  const handleNewChat = () => {
-    const newSessionId = useSessionStore.getState().resetSession()
-    setActiveSession(newSessionId)
+  const handleNewChat = async () => {
     useChatStore.getState().clearMessages()
     useDocumentStore.getState().clearDocuments()
-    navigate('/')
+    const newSessionId = await useSessionStore.getState().resetSession()
+    setActiveSession(newSessionId)
+    navigate('/workspace')
   }
 
   const handleSelectSession = (sessionId) => {
@@ -42,7 +42,7 @@ export default function Sidebar({ isCollapsed, toggleSidebar }) {
         mindmapEdges: sessionData.mindmapEdges || [],
       })
     }
-    navigate('/')
+    navigate('/workspace')
   }
 
   const entries = Object.entries(history).sort(([, a], [, b]) => b.updatedAt - a.updatedAt)
@@ -56,7 +56,7 @@ export default function Sidebar({ isCollapsed, toggleSidebar }) {
     >
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-surface-200 dark:border-surface-800">
-        <Link to="/" className={`flex items-center gap-2.5 overflow-hidden ${isCollapsed ? 'justify-center w-full' : ''}`}>
+        <Link to="/workspace" className={`flex items-center gap-2.5 overflow-hidden ${isCollapsed ? 'justify-center w-full' : ''}`}>
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-md shadow-primary-500/20 shrink-0">
             <BookOpen className="w-4 h-4 text-white" />
           </div>

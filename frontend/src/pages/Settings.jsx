@@ -329,7 +329,7 @@ export default function Settings() {
       <header className="sticky top-0 z-30 h-16 border-b border-surface-200/70 dark:border-surface-800/70 bg-white/85 dark:bg-surface-900/85 backdrop-blur-xl shadow-sm">
         <div className="max-w-8xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-4">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/workspace')}
             className="flex items-center gap-2 text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />

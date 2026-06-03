@@ -113,6 +113,7 @@ class ChatResponse(BaseModel):
 class ChatTitleRequest(BaseModel):
     query: str = Field(..., description="ประโยคแรกของผู้ใช้")
     model_name: Optional[str] = Field(default="typhoon-2.5", description="โมเดล LLM ที่ใช้สร้างชื่อ")
+    session_id: Optional[str] = Field(default=None, description="Session ID สำหรับยืนยันสิทธิ์ความเป็นเจ้าของ")
 
 
 class CompareRequest(BaseModel):

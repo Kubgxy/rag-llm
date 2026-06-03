@@ -12,6 +12,7 @@ import CompareToggle from '../components/chat/CompareToggle.jsx'
 import NormalLayout from '../components/layout/NormalLayout.jsx'
 import CompareLayout from '../components/layout/CompareLayout.jsx'
 import PdfViewerModal from '../components/layout/PdfViewerModal.jsx'
+import UserProfileMenu from '../components/auth/UserProfileMenu.jsx'
 
 export default function Workspace() {
   const { sessionId } = useParams()
@@ -123,7 +124,7 @@ export default function Workspace() {
       <header className="h-16 bg-white dark:bg-surface-900 border-b border-surface-200 dark:border-surface-800 flex items-center justify-between px-4 shrink-0 z-20 shadow-sm">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/workspace')}
             className="p-1.5 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg text-surface-500 transition-colors shrink-0"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -197,6 +198,7 @@ export default function Workspace() {
           >
             {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
+          <UserProfileMenu />
         </div>
 
         {/* Mobile toggles */}

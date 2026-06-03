@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "RAG LLM Backend"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
-
+ 
     # Server settings
     HOST: str = "0.0.0.0"
     PORT: int = 8000
@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     CONVERSATION_MEMORY_MAX_TOKENS: int = 4096
     
     # Web search settings
-    TAVILY_API_KEY: str = ""
+    TAVILY_API_KEY: str = "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"
 
     class Config:
         env_file = ".env"

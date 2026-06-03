@@ -1,71 +1,85 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { createSessionApi } from '../services/api.js'
 
 /**
- * Session Store สำหรับจัดการ session_id ของแต่ละ session
+ * Session Store สำหรับจัดการ session_id (UUID จาก backend API)
  * ใช้ persist เพื่อเก็บ session_id ไว้ใน localStorage
  */
-
-// สร้าง UUID แบบง่าย
-const generateSessionId = () => {
-  return 'session_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9)
-}
-
 export const useSessionStore = create(
   persist(
     (set, get) => ({
       sessionId: null,
-      chatTitle: 'New Chat', // NEW: chat title
-      chatTitleLoading: false, // NEW: track if loading
-      arenaSessionId: null, // NEW: separate session for compare mode
+      chatTitle: 'New Chat',
+      chatTitleLoading: false,
+      arenaSessionId: null,
+      isCreatingSession: false,
 
-      // สร้าง session ใหม่
-      createSession: () => {
-        const newSessionId = generateSessionId()
-        set({ sessionId: newSessionId, chatTitle: 'New Chat' })
-        return newSessionId
+      // สร้าง session ใหม่ผ่าน API (ได้ UUID กลับ)
+      createSession: async (title = null, sessionType = 'notebook') => {
+        set({ isCreatingSession: true })
+        try {
+          const session = await createSessionApi(title, sessionType)
+          const newSessionId = session.id
+          set({ sessionId: newSessionId, chatTitle: title || 'New Chat', isCreatingSession: false })
+          return newSessionId
+        } catch (error) {
+          console.error('❌ Failed to create session via API:', error)
+          // Fallback: ถ้า API ไม่ได้ ให้ใช้ UUID ฝั่ง client (กรณี backend ยังไม่พร้อม)
+          const fallbackId = crypto.randomUUID()
+          set({ sessionId: fallbackId, chatTitle: title || 'New Chat', isCreatingSession: false })
+          return fallbackId
+        }
       },
 
-      // ดึง session_id ปัจจุบัน (ถ้าไม่มีก็สร้างใหม่)
+      // ดึง session_id ปัจจุบัน (ถ้าไม่มีจะต้อง createSession ก่อน)
       getSessionId: () => {
-        const { sessionId, createSession } = get()
-        if (!sessionId) {
-          return createSession()
-        }
+        const { sessionId } = get()
         return sessionId
       },
 
-      // NEW: สร้าง arena session ให้แยกออก
-      getArenaSessionId: () => {
-        const { arenaSessionId, createSession } = get()
-        if (!arenaSessionId) {
-          const newId = generateSessionId()
+      // ตั้ง sessionId ตรงๆ (สำหรับ hydrate จาก history)
+      setSessionId: (id) => set({ sessionId: id }),
+
+      // สร้าง arena session ให้แยกออก
+      createArenaSession: async () => {
+        try {
+          const session = await createSessionApi(null, 'arena')
+          const newId = session.id
           set({ arenaSessionId: newId })
           return newId
+        } catch (error) {
+          console.error('❌ Failed to create arena session:', error)
+          const fallbackId = crypto.randomUUID()
+          set({ arenaSessionId: fallbackId })
+          return fallbackId
         }
+      },
+
+      getArenaSessionId: () => {
+        const { arenaSessionId } = get()
         return arenaSessionId
       },
 
-      // รีเซ็ต session (เคลียร์ทุกอย่างเริ่มใหม่)
-      resetSession: () => {
-        const newSessionId = generateSessionId()
-        set({ sessionId: newSessionId, chatTitle: 'New Chat' })
-        return newSessionId
+      // รีเซ็ต session (สร้างใหม่ผ่าน API)
+      resetSession: async () => {
+        const { createSession } = get()
+        return await createSession()
       },
 
-      // NEW: ตั้งชื่อแชท
+      // ตั้งชื่อแชท
       setChatTitle: (title) => set({ chatTitle: title, chatTitleLoading: false }),
 
-      // NEW: ตั้ง loading state
+      // ตั้ง loading state
       setChatTitleLoading: (loading) => set({ chatTitleLoading: loading }),
     }),
     {
-      name: 'rag-session-storage', // ชื่อ key ใน localStorage
+      name: 'rag-session-storage',
       partialize: (state) => ({
         sessionId: state.sessionId,
         chatTitle: state.chatTitle,
-        arenaSessionId: state.arenaSessionId
-      }), // เก็บ sessionId + chatTitle + arenaSessionId
+        arenaSessionId: state.arenaSessionId,
+      }),
     }
   )
 )

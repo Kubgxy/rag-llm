@@ -1,10 +1,15 @@
 import json
 import os
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional, List
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.schemas import ActionGenerateRequest, ActionGenerateResponse, ActionType
-from app.services import llm_service, document_processor
+from app.services import llm_service, document_processor, session_service
+from app.database import get_db
+from app.db_models import User
+from app.services.auth_service import get_current_user
+import uuid as uuid_mod
 
 router = APIRouter(prefix="/actions", tags=["Actions"])
 
@@ -162,10 +167,22 @@ def _build_action_prompt(action_type: ActionType, language: str, user_goal: Opti
 
 
 @router.post("/generate", response_model=ActionGenerateResponse)
-async def generate_action(request: ActionGenerateRequest):
+async def generate_action(
+    request: ActionGenerateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     สร้างผลลัพธ์เฉพาะทางจากเอกสารใน session เดียวกัน (2-Step Pipeline)
     """
+    session_uuid = uuid_mod.UUID(request.session_id)
+    # ตรวจสอบสิทธิ์ความเป็นเจ้าของของเซสชัน
+    session = await session_service.get_session(
+        db, session_id=session_uuid, user_id=current_user.id
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="ไม่พบแชทเซสชันนี้")
+
     try:
         # Step 1: ให้โมเดลหลัก (Chinda) สกัดและสรุปเนื้อหาจากเอกสาร
         # (ดึงชื่อโมเดลภาษาไทยจาก DEFAULT_LLM_MODEL)
@@ -309,7 +326,7 @@ async def generate_action(request: ActionGenerateRequest):
 
         # บันทึกข้อมูล Action ลง Disk ของ Backend เพื่อป้องกันข้อมูลหายเมื่อกด F5/Refresh
         try:
-            storage_dir = os.path.join(os.path.dirname(settings.CHROMA_PATH), "actions")
+            storage_dir = os.path.join("data", "actions")
             os.makedirs(storage_dir, exist_ok=True)
             file_name = f"action_{request.session_id}_{request.action_type.value}_{action_id}.json"
             file_path = os.path.join(storage_dir, file_name)
@@ -329,12 +346,24 @@ async def generate_action(request: ActionGenerateRequest):
 
 
 @router.get("/session/{session_id}", response_model=List[ActionGenerateResponse])
-async def get_session_actions(session_id: str):
+async def get_session_actions(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     ดึงผลลัพธ์ Action ทั้งหมดที่เคยสร้างไว้ใน session นี้จาก Disk กลับคืนมา
     """
+    session_uuid = uuid_mod.UUID(session_id)
+    # ตรวจสอบสิทธิ์ความเป็นเจ้าของของเซสชัน
+    session = await session_service.get_session(
+        db, session_id=session_uuid, user_id=current_user.id
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="ไม่พบแชทเซสชันนี้")
+
     try:
-        storage_dir = os.path.join(os.path.dirname(settings.CHROMA_PATH), "actions")
+        storage_dir = os.path.join("data", "actions")
         if not os.path.exists(storage_dir):
             return []
 

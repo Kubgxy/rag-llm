@@ -90,7 +90,7 @@ export function useChat() {
         // If first message, suggest title
         if (isFirstMessage) {
           try {
-            const titleResponse = await suggestTitle(query, selectedModel)
+            const titleResponse = await suggestTitle(query, selectedModel, sessionId)
             if (titleResponse.title) {
               useSessionStore.getState().setChatTitle(titleResponse.title)
               // Sync the new title to history
