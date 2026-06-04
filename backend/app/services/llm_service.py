@@ -249,23 +249,37 @@ class LLMService:
         )
         print(f"   ⏱️ Create index: {time.time() - t1:.2f}s")
 
-        # 1. Vector Retriever - ใช้ effective_top_k ที่กำหนดตาม runtime พร้อมกรองไฟล์ที่เลือก (ถ้ามี)
+        # 1. Vector Retriever - ใช้ effective_top_k ที่กำหนดตาม runtime พร้อมกรองไฟล์และ session
         retriever_kwargs = {"similarity_top_k": effective_top_k}
+        from llama_index.core.vector_stores import MetadataFilters, MetadataFilter, FilterCondition, FilterOperator
+        
+        session_filter = MetadataFilter(key="session_id", value=session_id)
+        
         if selected_files:
-            from llama_index.core.vector_stores import MetadataFilters, MetadataFilter, FilterCondition
-            print(f"   🎯 [Metadata Filter] ค้นหาเฉพาะไฟล์: {selected_files}")
+            print(f"   🎯 [Metadata Filter] ค้นหาเฉพาะไฟล์: {selected_files} และ session_id: {session_id}")
             if len(selected_files) == 1:
                 filters = MetadataFilters(
-                    filters=[MetadataFilter(key="file_name", value=selected_files[0])]
+                    filters=[
+                        session_filter,
+                        MetadataFilter(key="file_name", value=selected_files[0])
+                    ],
+                    condition=FilterCondition.AND
                 )
             else:
                 filters = MetadataFilters(
                     filters=[
-                        MetadataFilter(key="file_name", value=file) for file in selected_files
+                        session_filter,
+                        MetadataFilter(key="file_name", value=selected_files, operator=FilterOperator.IN)
                     ],
-                    condition=FilterCondition.OR
+                    condition=FilterCondition.AND
                 )
-            retriever_kwargs["filters"] = filters
+        else:
+            print(f"   🎯 [Metadata Filter] ค้นหาเฉพาะ session_id: {session_id}")
+            filters = MetadataFilters(
+                filters=[session_filter]
+            )
+            
+        retriever_kwargs["filters"] = filters
 
         vector_retriever = index.as_retriever(**retriever_kwargs)
 
