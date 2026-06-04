@@ -10,6 +10,7 @@ export default function ActionResults() {
   const { t, lang } = useLanguageStore()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [headerActions, setHeaderActions] = useState(null)
 
   const selected = actionResults.find((item) => item.id === selectedActionResultId) || actionResults[0]
 
@@ -88,11 +89,13 @@ export default function ActionResults() {
     setSelectedActionResult(itemId)
     setIsFullscreen(fullscreen)
     setIsModalOpen(true)
+    setHeaderActions(null)
   }
 
   const handleCloseDetail = () => {
     setIsModalOpen(false)
     setIsFullscreen(false)
+    setHeaderActions(null)
   }
 
   const modalContent = isModalOpen && selected ? (
@@ -108,7 +111,7 @@ export default function ActionResults() {
           `relative w-full flex flex-col overflow-hidden border transition-all duration-300 ` +
           `${isFullscreen
             ? 'h-full max-w-none rounded-none border-surface-700/50 bg-surface-50 dark:bg-surface-900'
-            : 'max-w-7xl h-[94vh] rounded-2xl border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 shadow-2xl'
+            : 'max-w-8xl h-[94vh] rounded-2xl border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 shadow-2xl'
           }`    
         }
         onClick={(event) => event.stopPropagation()}
@@ -116,101 +119,55 @@ export default function ActionResults() {
         <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_85%_10%,rgba(14,165,233,0.12),transparent_36%),radial-gradient(circle_at_10%_85%,rgba(99,102,241,0.10),transparent_32%)]" />
 
         {/* Header */}
-        <div className="relative px-4 py-3 border-b border-surface-200 dark:border-surface-800 flex items-center justify-between shrink-0 bg-white/90 dark:bg-surface-950/95 backdrop-blur-sm z-10">
-          <div className="min-w-0 pr-4">
-            <div className="inline-flex items-center gap-2 min-w-0">
-              <SelectedIcon className="w-4 h-4 text-primary-600 dark:text-primary-400 shrink-0" />
-              <h3 className="font-semibold text-surface-800 dark:text-surface-200 truncate">
-                {selected.title}
-              </h3>
-              <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200/70 dark:border-primary-700/50">
-                {getActionLabel(selected.actionType)}
-              </span>
+        {!isFullscreen && (
+          <div className="relative px-4 py-3 border-b border-surface-200 dark:border-surface-800 flex items-center justify-between shrink-0 bg-white/90 dark:bg-surface-950/95 backdrop-blur-sm z-30">
+            <div className="min-w-0 pr-4">
+              <div className="inline-flex items-center gap-2 min-w-0">
+                <SelectedIcon className="w-4 h-4 text-primary-600 dark:text-primary-400 shrink-0" />
+                <h3 className="font-semibold text-surface-800 dark:text-surface-200 truncate">
+                  {selected.title}
+                </h3>
+                <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200/70 dark:border-primary-700/50">
+                  {getActionLabel(selected.actionType)}
+                </span>
+              </div>
+              <p className="text-[11px] text-surface-500 mt-0.5 truncate">
+                {selected.modelName || '-'} • {formatTime(selected.createdAt)}
+              </p>
             </div>
-            <p className="text-[11px] text-surface-500 mt-0.5 truncate">
-              {selected.modelName || '-'} • {formatTime(selected.createdAt)}
-            </p>
+
+            <div className="flex items-center gap-4">
+              {headerActions}
+              <button
+                onClick={handleCloseDetail}
+                className="p-1.5 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg text-surface-500 transition-colors"
+                aria-label={t('knowledgeActionClose')}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
+        )}
 
-          <div className="flex items-center gap-2">
-            {/* <button
-              onClick={() => setIsFullscreen((prev) => !prev)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-200 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-              aria-label={isFullscreen ? t('knowledgeActionExitFullscreen') : t('knowledgeActionEnterFullscreen')}
-            >
-              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-              <span className="hidden sm:inline">
-                {isFullscreen ? t('knowledgeActionExitFullscreen') : t('knowledgeActionEnterFullscreen')}
-              </span>
-            </button> */}
-
-            <button
-              onClick={handleCloseDetail}
-              className="p-1.5 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg text-surface-500 transition-colors"
-              aria-label={t('knowledgeActionClose')}
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Content Area */}
         <div
           className={
             `relative flex-1 bg-surface-100/70 dark:bg-surface-950 flex flex-col w-full ` +
-            // 🌟 จุดสำคัญ: ถ้าเป็น Fullscreen ให้ overflow-hidden (ปิดสกรอลล์) และจัดให้อยู่ตรงกลาง
             `${isFullscreen 
-              ? 'overflow-hidden items-center justify-center p-4' 
+              ? 'overflow-hidden items-center justify-center p-0' 
               : 'overflow-y-auto p-4 space-y-3'}`
           }
         >
-          {/* หุ้ม Component เพื่อให้มันใช้พื้นที่เต็มที่แต่ไม่เกินขอบจอในโหมด Fullscreen */}
-          <div className={`w-full ${isFullscreen ? 'h-full flex items-center justify-center' : ''}`}>
-            <ActionDetailRenderer actionType={selected.actionType} answer={selected.answer} />
+          <div className={`w-full ${isFullscreen ? 'h-full' : ''}`}>
+            <ActionDetailRenderer 
+              actionId={selected.id}
+              actionType={selected.actionType} 
+              answer={selected.answer} 
+              isFullscreen={isFullscreen} 
+              citations={selected.citations}
+              onToggleFullscreen={(val) => setIsFullscreen(val)}
+              onRenderHeaderActions={setHeaderActions}
+            />
           </div>
-
-          {Array.isArray(selected.citations) && selected.citations.length > 0 && !isFullscreen && (
-            <div className="mt-4 pt-4 border-t border-surface-200 dark:border-surface-800/80 w-full shrink-0">
-              <h4 className="text-xs font-bold text-surface-600 dark:text-surface-400 mb-2.5 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-primary-500" />
-                {lang === 'th' ? '📌 แหล่งอ้างอิงที่ใช้' : '📌 Sources & References'}
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {selected.citations.map((cite, idx) => {
-                  const isWeb = cite.source_type === 'web' || cite.url;
-                  return (
-                    <a
-                      key={`cite-${idx}`}
-                      href={isWeb ? cite.url : undefined}
-                      target={isWeb ? "_blank" : undefined}
-                      rel={isWeb ? "noopener noreferrer" : undefined}
-                      className={
-                        `inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-lg border transition-all ` +
-                        `${isWeb 
-                          ? 'border-sky-200 dark:border-sky-900 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 hover:bg-sky-100 hover:border-sky-300' 
-                          : 'border-surface-200 dark:border-surface-800 bg-surface-100 dark:bg-surface-800/60 text-surface-700 dark:text-surface-300'
-                        }`
-                      }
-                      title={cite.text_snippet || undefined}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
-                      <span className="max-w-[200px] truncate font-medium">{cite.file_name || cite.url}</span>
-                      {!isWeb && cite.page_label && (
-                        <span className="text-[10px] opacity-75">
-                          ({t('citationPageLabel')} {cite.page_label})
-                        </span>
-                      )}
-                      {isWeb && (
-                        <span className="text-[9px] uppercase font-bold tracking-wider px-1 bg-sky-200/50 dark:bg-sky-900/60 rounded shrink-0">
-                          Web
-                        </span>
-                      )}
-                    </a>
-                  )
-                })}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

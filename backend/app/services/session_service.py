@@ -99,6 +99,10 @@ async def delete_session(
     if session is None:
         return False
 
+    # ลบ embeddings ใน pgvector และ cache ในระบบ RAG
+    from app.services.vector_store import vector_store_service
+    vector_store_service.delete_session_embeddings(str(session_id))
+
     await db.delete(session)
     await db.commit()
     print(f"🗑️ [Session] ลบ session: {session_id}")

@@ -3,6 +3,7 @@ import { Upload, FileText, Loader2, Sparkles } from 'lucide-react'
 import { useUpload } from '../../hooks/useUpload.js'
 import { useDocumentStore } from '../../stores/documentStore.js'
 import { useLanguageStore } from '../../stores/languageStore.js'
+import { useSessionStore } from '../../stores/sessionStore.js'
 
 export default function UploadZone() {
   const fileInputRef = useRef(null)
@@ -59,7 +60,7 @@ export default function UploadZone() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf"
+          accept=".pdf,.txt,.md,.docx,.pptx,.csv,.xlsx"
           onChange={handleFileSelect}
           className="hidden"
           id="file-upload-input"
@@ -150,9 +151,19 @@ export default function UploadZone() {
             {documents.map((doc, i) => (
               <div
                 key={i}
-                onClick={() => setPreviewPdf(doc.name)}
+                onClick={() => {
+                  const ext = doc.name.substring(doc.name.lastIndexOf('.')).toLowerCase()
+                  const isPreviewable = ['.pdf', '.txt', '.md'].includes(ext)
+                  if (isPreviewable) {
+                    setPreviewPdf(doc.name)
+                  } else {
+                    const sessionId = useSessionStore.getState().sessionId
+                    const fileUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/docs/${sessionId}_${doc.name}`
+                    window.open(fileUrl, '_blank')
+                  }
+                }}
                 className="group flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 hover:border-primary-400 dark:hover:border-primary-500/40 hover:shadow-sm cursor-pointer transition-all duration-200 select-none"
-                title={`Click to open PDF: ${doc.name}`}
+                title={`คลิกเพื่อดูหรือดาวน์โหลด: ${doc.name}`}
               >
                 <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform duration-200">
                    <FileText className="w-4.5 h-4.5 text-emerald-500 dark:text-emerald-400" />

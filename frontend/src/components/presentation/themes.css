@@ -1,0 +1,171 @@
+/* themes.css - Dynamic Design Tokens & Visual Identities (Gamma.app Inspired) */
+
+/* -------------------------------------------------------------
+   DEFAULT VARIABLES (FALLBACK)
+   ------------------------------------------------------------- */
+.theme-container {
+  --bg-deck: #0b0f19;
+  --text-title: #ffffff;
+  --text-body: #94a3b8;
+  --accent-color: #38bdf8;
+  --secondary-accent: #14b8a6;
+  
+  --border-radius: 12px;
+  --border-width: 1px;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --card-bg: rgba(255, 255, 255, 0.02);
+  --card-hover-border: rgba(56, 189, 248, 0.4);
+  --shadow-preset: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  
+  --font-family-title: 'Outfit', 'Sarabun', sans-serif;
+  --font-family-body: 'Inter', 'Sarabun', sans-serif;
+  
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* -------------------------------------------------------------
+   1. SWISS MINIMALIST THEME (theme-swiss)
+   - Philosophy: High legibility, asymmetric whitespace, sharp edges, bold red accent.
+   ------------------------------------------------------------- */
+.theme-swiss {
+  --bg-deck: #f8fafc;
+  --text-title: #0f172a;
+  --text-body: #334155;
+  --accent-color: #dc2626; /* Swiss Red */
+  --secondary-accent: #1e293b;
+  
+  --border-radius: 0px; /* Perfectly sharp geometric edges */
+  --border-width: 1px;
+  --border-color: #cbd5e1;
+  --card-bg: #ffffff;
+  --card-hover-border: #dc2626;
+  --shadow-preset: none; /* Swiss layout relies on flat space, not depth */
+  
+  --font-family-title: 'Inter', 'Sarabun', sans-serif;
+  --font-family-body: 'Inter', 'Sarabun', sans-serif;
+}
+
+/* Dark mode override for Swiss */
+.dark .theme-swiss {
+  --bg-deck: #090d16;
+  --text-title: #ffffff;
+  --text-body: #94a3b8;
+  --accent-color: #ef4444;
+  --secondary-accent: #f1f5f9;
+  
+  --border-color: #334155;
+  --card-bg: #111827;
+  --card-hover-border: #ef4444;
+}
+
+/* -------------------------------------------------------------
+   2. RETRO GEOMETRIC THEME (theme-retro)
+   - Philosophy: Fun, friendly, large border radii, thick solid card offsets.
+   ------------------------------------------------------------- */
+.theme-retro {
+  --bg-deck: #fef9c3; /* Warm pastel cream yellow */
+  --text-title: #1e1b4b; /* Deep retro blue/purple */
+  --text-body: #312e81;
+  --accent-color: #0ea5e9; /* Sky Blue */
+  --secondary-accent: #f43f5e; /* Rose Red */
+  
+  --border-radius: 24px; /* Big rounded bubble corners */
+  --border-width: 2px;
+  --border-color: #1e1b4b;
+  --card-bg: #ffffff;
+  --card-hover-border: #f43f5e;
+  --shadow-preset: 4px 4px 0px 0px #1e1b4b; /* Classic retro shadow offset */
+  
+  --font-family-title: 'Outfit', 'Sarabun', sans-serif;
+  --font-family-body: 'Inter', 'Sarabun', sans-serif;
+}
+
+/* Dark mode override for Retro */
+.dark .theme-retro {
+  --bg-deck: #1e1b4b; /* Dark retro space */
+  --text-title: #fef9c3;
+  --text-body: #cbd5e1;
+  --accent-color: #38bdf8;
+  --secondary-accent: #fb7185;
+  
+  --border-color: #fef9c3;
+  --card-bg: #312e81;
+  --card-hover-border: #fb7185;
+  --shadow-preset: 4px 4px 0px 0px #fef9c3;
+}
+
+/* -------------------------------------------------------------
+   3. TECH BRUTALIST THEME (theme-tech)
+   - Philosophy: High contrast, thick borders, neon accent, retro-tech vibe.
+   ------------------------------------------------------------- */
+.theme-tech {
+  --bg-deck: #000000; /* Pure black */
+  --text-title: #39ff14; /* Acid green/neon green */
+  --text-body: #ffffff;
+  --accent-color: #ff5e00; /* Signal Orange */
+  --secondary-accent: #39ff14;
+  
+  --border-radius: 4px; /* Small, aggressive tech corner */
+  --border-width: 3px; /* Thick brutalist borders */
+  --border-color: #39ff14;
+  --card-bg: #111111;
+  --card-hover-border: #ff5e00;
+  --shadow-preset: 6px 6px 0px 0px #ff5e00; /* Heavy orange shadow offset */
+  
+  --font-family-title: 'Outfit', 'Sarabun', sans-serif;
+  --font-family-body: 'Inter', 'Sarabun', sans-serif;
+}
+
+/* Light mode override for Tech Brutalist */
+.theme-tech:not(.dark) {
+  --bg-deck: #f1f5f9;
+  --text-title: #111111;
+  --text-body: #334155;
+  --accent-color: #ff5e00;
+  --secondary-accent: #111111;
+  
+  --border-color: #111111;
+  --card-bg: #ffffff;
+  --card-hover-border: #ff5e00;
+  --shadow-preset: 6px 6px 0px 0px #ff5e00;
+}
+
+/* -------------------------------------------------------------
+   UTILITIES FOR COMPONENT MAPPING
+   ------------------------------------------------------------- */
+.deck-bg {
+  background-color: var(--bg-deck);
+  color: var(--text-body);
+  font-family: var(--font-family-body);
+}
+
+.deck-title {
+  color: var(--text-title);
+  font-family: var(--font-family-title);
+}
+
+.deck-accent-text {
+  color: var(--accent-color);
+}
+
+.deck-accent-bg {
+  background-color: var(--accent-color);
+}
+
+.deck-border {
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--border-radius);
+}
+
+.deck-card {
+  background-color: var(--card-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-preset);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.deck-card:hover {
+  border-color: var(--card-hover-border);
+  transform: translateY(-2px);
+}

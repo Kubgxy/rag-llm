@@ -36,6 +36,7 @@ class User(Base):
     # Relationships
     sessions: Mapped[list["ChatSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     arena_votes: Mapped[list["ArenaVote"]] = relationship(back_populates="user")
+    actions: Mapped[list["GeneratedAction"]] = relationship(back_populates="user")
 
     __table_args__ = (
         CheckConstraint("role IN ('admin', 'user', 'viewer')", name="ck_users_role"),
@@ -62,7 +63,9 @@ class ChatSession(Base):
     user: Mapped["User"] = relationship(back_populates="sessions")
     messages: Mapped[list["ChatMessage"]] = relationship(back_populates="session", cascade="all, delete-orphan")
     documents: Mapped[list["Document"]] = relationship(back_populates="session", cascade="all, delete-orphan")
-    embeddings: Mapped[list["DocumentEmbedding"]] = relationship(back_populates="session", cascade="all, delete-orphan")
+    actions: Mapped[list["GeneratedAction"]] = relationship(
+        back_populates="session", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("idx_sessions_user", "user_id", "created_at"),
@@ -118,40 +121,11 @@ class Document(Base):
 
     # Relationships
     session: Mapped["ChatSession"] = relationship(back_populates="documents")
-    embeddings: Mapped[list["DocumentEmbedding"]] = relationship(back_populates="document", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("idx_documents_session", "session_id"),
     )
 
-
-class DocumentEmbedding(Base):
-    __tablename__ = "document_embeddings"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    document_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE")
-    )
-    session_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False
-    )
-    chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
-    chunk_index: Mapped[int | None] = mapped_column(Integer)
-    page_label: Mapped[str | None] = mapped_column(String(50))
-    metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, default=dict)
-    embedding = mapped_column(Vector(1024), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(default=utcnow)
-
-    # Relationships
-    document: Mapped["Document | None"] = relationship(back_populates="embeddings")
-    session: Mapped["ChatSession"] = relationship(back_populates="embeddings")
-
-    __table_args__ = (
-        Index("idx_embeddings_session", "session_id"),
-        Index("idx_embeddings_document", "document_id"),
-    )
 
 
 class ArenaVote(Base):
@@ -177,4 +151,41 @@ class ArenaVote(Base):
 
     __table_args__ = (
         CheckConstraint("winner IN ('a', 'b', 'tie')", name="ck_votes_winner"),
+    )
+
+
+class GeneratedAction(Base):
+    __tablename__ = "generated_actions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    action_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    title: Mapped[str | None] = mapped_column(String(200))
+    prompt: Mapped[str | None] = mapped_column(Text)
+    answer: Mapped[str] = mapped_column(Text, nullable=False)
+    thinking: Mapped[str | None] = mapped_column(Text)
+    model_name: Mapped[str | None] = mapped_column(String(200))
+    citations: Mapped[dict | None] = mapped_column(JSONB)
+    editor_state: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+    # Relationships
+    session: Mapped["ChatSession"] = relationship(back_populates="actions")
+    user: Mapped["User"] = relationship(back_populates="actions")
+
+    __table_args__ = (
+        CheckConstraint(
+            "action_type IN ('mindmap', 'chart', 'slides', 'infographic')",
+            name="ck_actions_type",
+        ),
+        Index("idx_actions_session", "session_id"),
+        Index("idx_actions_user", "user_id"),
     )

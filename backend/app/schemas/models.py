@@ -98,7 +98,7 @@ class Citation(BaseModel):
     page_label: str
     text_snippet: Optional[str] = None
     similarity_score: Optional[float] = None
-    source_type: Optional[Literal["pdf", "web"]] = None
+    source_type: Optional[str] = None
     url: Optional[str] = None
 
 
@@ -140,6 +140,11 @@ class ActionGenerateRequest(BaseModel):
     language: str = Field(default="th", description="ภาษา output (th/en)")
     selected_files: Optional[List[str]] = Field(default=None, description="รายชื่อชื่อไฟล์ที่ต้องการดึงข้อมูลสำหรับสร้าง Action")
     detail_level: Optional[str] = Field(default="concise", description="ระดับความละเอียดของเนื้อหา (concise / detailed)")
+    style: Optional[str] = Field(default="clean", description="สไตล์และเลย์เอาต์ (clean / minimal / professional)")
+    primary_color: Optional[str] = Field(default=None, description="สีหลักของสไลด์/อินโฟกราฟิก (Hex Code เช่น #6366f1)")
+    secondary_color: Optional[str] = Field(default=None, description="สีรองของสไลด์/อินโฟกราฟิก (Hex Code เช่น #14b8a6)")
+    background_color: Optional[str] = Field(default=None, description="สีพื้นหลังของสไลด์/อินโฟกราฟิก (Hex Code เช่น #0f172a)")
+
 
 
 
@@ -154,6 +159,12 @@ class ActionGenerateResponse(BaseModel):
     model_name: str
     citations: Optional[List[Citation]] = None
     created_at: float = Field(default_factory=lambda: time.time() * 1000)
+    editor_state: Optional[Dict[str, Any]] = None
+
+
+class ActionUpdateRequest(BaseModel):
+    editor_state: Optional[Dict[str, Any]] = None
+    answer: Optional[str] = None
 
 
 class ErrorResponse(BaseModel):

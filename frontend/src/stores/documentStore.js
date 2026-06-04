@@ -253,6 +253,7 @@ export const useDocumentStore = create(
         modelName: result.modelName || result.model_name || null,
         citations: result.citations || [],
         createdAt: result.created_at || result.createdAt || Date.now(),
+        editorState: result.editorState || result.editor_state || null,
       }
       return {
         actionResults: [item, ...state.actionResults],
@@ -280,6 +281,7 @@ export const useDocumentStore = create(
           modelName: result.model_name || null,
           citations: result.citations || [],
           createdAt: result.created_at || result.createdAt || Date.now(),
+          editorState: result.editor_state || result.editorState || null,
         }
       })
 

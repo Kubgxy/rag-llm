@@ -39,9 +39,31 @@ class DocumentProcessorService:
         task_id = f"{session_id}_{filename}"
 
         try:
-            # 1. สกัดข้อความแยกตามหน้า
+            # 1. สกัดข้อความแยกตามหน้าตามชนิดไฟล์
             print(f"\n📄 [Task] เริ่มสกัดข้อความจาก: {filename}")
-            pages_text = extract_text_by_page(file_path)
+            ext = os.path.splitext(filename)[1].lower()
+            pages_text = {}
+            is_tabular = False
+            row_count = 0
+            
+            if ext == '.pdf':
+                pages_text = extract_text_by_page(file_path)
+            elif ext == '.docx':
+                from app.utils.parsers import extract_text_from_docx
+                pages_text = extract_text_from_docx(file_path)
+            elif ext == '.pptx':
+                from app.utils.parsers import extract_text_from_pptx
+                pages_text = extract_text_from_pptx(file_path)
+            elif ext in ['.txt', '.md']:
+                from app.utils.parsers import extract_text_from_txt_md
+                pages_text = extract_text_from_txt_md(file_path)
+            elif ext in ['.csv', '.xlsx']:
+                from app.utils.parsers import ingest_tabular_file
+                row_count = ingest_tabular_file(file_path, filename, session_id)
+                pages_text = {1: f"ไฟล์ตารางข้อมูล {filename} มีจำนวนแถวทั้งหมด {row_count} แถว บันทึกข้อมูลลงฐานข้อมูลระบบเรียบร้อย"}
+                is_tabular = True
+            else:
+                raise ValueError(f"ไม่รองรับนามสกุลไฟล์: {ext}")
 
             if not pages_text:
                 raise ValueError("ไม่สามารถสกัดข้อความจากไฟล์ได้ หรือไฟล์ว่างเปล่า")
@@ -91,8 +113,27 @@ class DocumentProcessorService:
 
             # 4. สร้าง Summary (Background)
             print(f"⏳ [LLM] กำลังสร้าง Summary ของ {filename}...")
-            doc_index = VectorStoreIndex(nodes=nodes)
-            summary = asyncio.run(self._generate_summary(doc_index))
+            if is_tabular:
+                try:
+                    import pandas as pd
+                    if ext == '.csv':
+                        df_preview = pd.read_csv(file_path, nrows=3)
+                    else:
+                        df_preview = pd.read_excel(file_path, nrows=3)
+                    columns_list = list(df_preview.columns)
+                    sample_rows = df_preview.to_string(index=False)
+                    summary = (
+                        f"📋 **สรุปไฟล์ตารางข้อมูล: {filename}**\n"
+                        f"- **จำนวนแถวทั้งหมด**: {row_count} แถว\n"
+                        f"- **คอลัมน์ที่พบ ({len(columns_list)} คอลัมน์)**: {', '.join([f'`{col}`' for col in columns_list])}\n\n"
+                        f"💡 **ตัวอย่างข้อมูล 3 แถวแรก**:\n```\n{sample_rows}\n```\n\n"
+                        f"*ระบบได้บันทึกข้อมูลตารางนี้ลงฐานข้อมูล SQLite เรียบร้อยแล้ว คุณสามารถพิมพ์ถามคำสั่งทางสถิติหรือให้ AI เขียนโค้ดวิเคราะห์ข้อมูลของตารางนี้ได้เลย*"
+                    )
+                except Exception as e:
+                    summary = f"ไฟล์ตารางข้อมูล {filename} มีจำนวนแถวทั้งหมด {row_count} แถว บันทึกข้อมูลลงฐานข้อมูลระบบเรียบร้อย (ไม่สามารถดึงตัวอย่างคอลัมน์ได้: {str(e)})"
+            else:
+                doc_index = VectorStoreIndex(nodes=nodes)
+                summary = asyncio.run(self._generate_summary(doc_index))
 
             # 5. อัพเดทสถานะเป็น completed
             doc_status[task_id] = {
@@ -136,9 +177,31 @@ class DocumentProcessorService:
         }
 
         try:
-            # 1. สกัดข้อความแยกตามหน้า
+            # 1. สกัดข้อความแยกตามหน้าตามชนิดไฟล์
             print(f"\n📄 [Task DB] เริ่มสกัดข้อความจาก: {filename}")
-            pages_text = extract_text_by_page(file_path)
+            ext = os.path.splitext(filename)[1].lower()
+            pages_text = {}
+            is_tabular = False
+            row_count = 0
+            
+            if ext == '.pdf':
+                pages_text = extract_text_by_page(file_path)
+            elif ext == '.docx':
+                from app.utils.parsers import extract_text_from_docx
+                pages_text = extract_text_from_docx(file_path)
+            elif ext == '.pptx':
+                from app.utils.parsers import extract_text_from_pptx
+                pages_text = extract_text_from_pptx(file_path)
+            elif ext in ['.txt', '.md']:
+                from app.utils.parsers import extract_text_from_txt_md
+                pages_text = extract_text_from_txt_md(file_path)
+            elif ext in ['.csv', '.xlsx']:
+                from app.utils.parsers import ingest_tabular_file
+                row_count = ingest_tabular_file(file_path, filename, session_id)
+                pages_text = {1: f"ไฟล์ตารางข้อมูล {filename} มีจำนวนแถวทั้งหมด {row_count} แถว บันทึกข้อมูลลงฐานข้อมูลระบบเรียบร้อย"}
+                is_tabular = True
+            else:
+                raise ValueError(f"ไม่รองรับนามสกุลไฟล์: {ext}")
 
             if not pages_text:
                 raise ValueError("ไม่สามารถสกัดข้อความจากไฟล์ได้ หรือไฟล์ว่างเปล่า")
@@ -203,13 +266,30 @@ class DocumentProcessorService:
             
             print(f"✅ [Index DB] {filename} สร้าง Vector เสร็จแล้ว (เริ่มแชทได้เลย)!")
 
-            # 4. สร้าง Summary และ Mindmap (Background)
+            # 4. สร้าง Summary (Background)
             print(f"⏳ [LLM DB] กำลังสร้าง Summary ของ {filename}...")
-            doc_index = VectorStoreIndex(nodes=nodes)
-            summary = await self._generate_summary(doc_index)
-
-            print(f"⏳ [LLM DB] กำลังสร้าง Mindmap ของ {filename}...")
-            mindmap = await self._generate_mindmap(doc_index)
+            if is_tabular:
+                try:
+                    import pandas as pd
+                    if ext == '.csv':
+                        df_preview = pd.read_csv(file_path, nrows=3)
+                    else:
+                        df_preview = pd.read_excel(file_path, nrows=3)
+                    columns_list = list(df_preview.columns)
+                    sample_rows = df_preview.to_string(index=False)
+                    summary = (
+                        f"📋 **สรุปไฟล์ตารางข้อมูล: {filename}**\n"
+                        f"- **จำนวนแถวทั้งหมด**: {row_count} แถว\n"
+                        f"- **คอลัมน์ที่พบ ({len(columns_list)} คอลัมน์)**: {', '.join([f'`{col}`' for col in columns_list])}\n\n"
+                        f"💡 **ตัวอย่างข้อมูล 3 แถวแรก**:\n```\n{sample_rows}\n```\n\n"
+                        f"*ระบบได้บันทึกข้อมูลตารางนี้ลงฐานข้อมูล SQLite เรียบร้อยแล้ว คุณสามารถพิมพ์ถามคำสั่งทางสถิติหรือให้ AI เขียนโค้ดวิเคราะห์ข้อมูลของตารางนี้ได้เลย*"
+                    )
+                except Exception as e:
+                    summary = f"ไฟล์ตารางข้อมูล {filename} มีจำนวนแถวทั้งหมด {row_count} แถว บันทึกข้อมูลลงฐานข้อมูลระบบเรียบร้อย (ไม่สามารถดึงตัวอย่างคอลัมน์ได้: {str(e)})"
+            else:
+                doc_index = VectorStoreIndex(nodes=nodes)
+                summary = await self._generate_summary(doc_index)
+            mindmap = {"nodes": [], "edges": []}
 
             # 5. อัปเดตสถานะเป็น completed ใน DB และ in-memory
             doc_status[task_id] = {
@@ -442,7 +522,7 @@ class DocumentProcessorService:
         นำ raw_content จากแหล่งข้อมูลเว็บเข้าสู่ RAG pipeline เดิม
         - split เป็น chunks
         - ใส่ metadata source/url
-        - ทำ embedding และบันทึกลง ChromaDB ของ session เดิม
+        - ทำ embedding และบันทึกลง pgvector ของ session เดิม
         - สร้าง summary อัตโนมัติจากหน้าเว็บนำเข้า
         """
         if not sources:

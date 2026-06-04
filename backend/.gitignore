@@ -52,6 +52,8 @@ uploaded_docs/
 
 # Chroma database
 chroma_local_data/
+actions/
+data/actions/
 
 # bm25 index
 bm25/

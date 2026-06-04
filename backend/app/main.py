@@ -11,25 +11,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import time
 import os
-import subprocess
 from app.config import settings
 from app.api import api_router
 from app.services import vector_store_service
 from app.database import init_db, close_db
-
-def ensure_playwright_installed():
-    """จะรันดาวน์โหลดเบราว์เซอร์อัตโนมัติ เฉพาะตอนทำงานในโหมด Development (รันในเครื่อง) เท่านั้น"""
-    if not settings.DEBUG:
-        print("🌍 [Production Mode] ข้ามการติดตั้ง Playwright อัตโนมัติ (คาดว่าติดตั้งมาจาก Docker/CI แล้ว)")
-        return
-
-    try:
-        print("🔍 [Dev Mode] กำลังตรวจสอบ Playwright Chromium...")
-        import subprocess
-        subprocess.run(["playwright", "install", "chromium"], check=True)
-        print("✅ Playwright Chromium พร้อมใช้งาน")
-    except Exception as e:
-        print(f"⚠️ เกิดข้อผิดพลาดในการตรวจสอบ/ติดตั้ง Playwright: {e}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -47,7 +32,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠️ เกิดข้อผิดพลาดในการสร้าง Database: {str(e)}")
 
-    ensure_playwright_installed()
 
     print(f"📦 โหลด Embedding Model: {settings.EMBEDDING_MODEL}")
 

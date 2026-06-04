@@ -42,6 +42,10 @@ backend/uploaded_docs/
 uploaded_docs/
 backend/chroma_local_data/
 chroma_local_data/
+backend/actions/
+backend/data/actions/
+actions/
+data/actions/
 backend/bm25/
 bm25/
 

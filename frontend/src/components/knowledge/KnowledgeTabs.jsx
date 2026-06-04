@@ -8,6 +8,45 @@ import Summary from './Summary.jsx'
 import ActionResults from './ActionResults.jsx'
 import { FileText, GitBranch, Sparkles, BarChart3, Presentation, Image } from 'lucide-react'
 
+const PRESET_PALETTES = [
+  {
+    name: 'Indigo Sky',
+    primary: '#6366f1',
+    secondary: '#06b6d4',
+    background: '#090d16',
+  },
+  {
+    name: 'Ocean Depth',
+    primary: '#0ea5e9',
+    secondary: '#22c55e',
+    background: '#0b1329',
+  },
+  {
+    name: 'Emerald Forest',
+    primary: '#10b981',
+    secondary: '#84cc16',
+    background: '#022c22',
+  },
+  {
+    name: 'Sunset Amber',
+    primary: '#f59e0b',
+    secondary: '#ef4444',
+    background: '#1c1917',
+  },
+  {
+    name: 'Business Light',
+    primary: '#2563eb',
+    secondary: '#4f46e5',
+    background: '#f8fafc',
+  },
+  {
+    name: 'Minimal Light',
+    primary: '#0f172a',
+    secondary: '#64748b',
+    background: '#ffffff',
+  }
+]
+
 export default function KnowledgeTabs() {
   const { activeTab, setActiveTab, summary, actionResults, addActionResult } = useDocumentStore()
   const { t, lang } = useLanguageStore()
@@ -18,6 +57,13 @@ export default function KnowledgeTabs() {
   const [selectedAction, setSelectedAction] = useState(null)
   const [selectedFilesForAction, setSelectedFilesForAction] = useState([])
   const [selectedDetailLevel, setSelectedDetailLevel] = useState('concise')
+
+  // Styling custom settings states
+  const [selectedStyle, setSelectedStyle] = useState('clean')
+  const [selectedPrimaryColor, setSelectedPrimaryColor] = useState('#6366f1')
+  const [selectedSecondaryColor, setSelectedSecondaryColor] = useState('#06b6d4')
+  const [selectedBackgroundColor, setSelectedBackgroundColor] = useState('#090d16')
+  const [useCustomColors, setUseCustomColors] = useState(false)
 
   // Fetch document lists from Zustand store
   const documents = useDocumentStore((state) => state.documents || [])
@@ -95,7 +141,7 @@ export default function KnowledgeTabs() {
     },
   ]
 
-  const handleActionClick = async (action, selectedFiles = [], detailLevel = 'concise') => {
+  const handleActionClick = async (action, selectedFiles = [], detailLevel = 'concise', customOptions = {}) => {
     if (actionLoading) return
 
     const sessionId = useSessionStore.getState().getSessionId()
@@ -111,6 +157,7 @@ export default function KnowledgeTabs() {
       const options = {
         language: lang,
         detailLevel: detailLevel,
+        ...customOptions
       }
       
       // ส่งเฉพาะไฟล์ที่ผู้ใช้เลือก (ถ้ามี)
@@ -199,11 +246,16 @@ export default function KnowledgeTabs() {
                 <button
                   key={action.id}
                   onClick={() => {
-                    // หากผู้ใช้เลือกทำ Presentation Slides หรือมีเอกสารมากกว่า 1 รายการ ให้เปิดหน้าต่างตั้งค่าก่อน
-                    if (action.id === 'slides' || availableFiles.length > 1) {
+                    // หากผู้ใช้เลือกทำ Presentation Slides หรือ Infographic หรือมีเอกสารมากกว่า 1 รายการ ให้เปิดหน้าต่างตั้งค่าก่อน
+                    if (action.id === 'slides' || action.id === 'infographic' || availableFiles.length > 1) {
                       setSelectedAction(action)
                       setSelectedFilesForAction([])
                       setSelectedDetailLevel('concise')
+                      setSelectedStyle('clean')
+                      setSelectedPrimaryColor('#6366f1')
+                      setSelectedSecondaryColor('#06b6d4')
+                      setSelectedBackgroundColor('#090d16')
+                      setUseCustomColors(false)
                     } else {
                       // หากทำแอคชันอื่น และมีเพียง 1 หรือ 0 เอกสาร ให้รันด่วนปกติ
                       handleActionClick(action, [], 'concise')
@@ -380,6 +432,119 @@ export default function KnowledgeTabs() {
               </div>
             ) : null}
 
+            {/* ส่วนที่ 3: การปรับแต่งสไตล์และโทนสี (เฉพาะสไลด์ Slides และ Infographic เท่านั้น) */}
+            {(selectedAction.id === 'slides' || selectedAction.id === 'infographic') && (
+              <div className="p-5 border-b border-surface-100 dark:border-surface-800 bg-surface-50/30 dark:bg-surface-800/10 flex flex-col gap-4 overflow-y-auto max-h-[300px]">
+                
+                {/* เลือกสไตล์ */}
+                <div>
+                  <p className="text-xs font-bold text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1">
+                    <span>✨</span>
+                    {lang === 'th' ? 'เลือกรูปแบบสไตล์ (Style Layout)' : 'Select Layout Style'}
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'clean', label: 'Clean', emoji: '✨' },
+                      { id: 'minimal', label: 'Minimal', emoji: '🌌' },
+                      { id: 'professional', label: 'Professional', emoji: '🏢' }
+                    ].map(styleOpt => (
+                      <button
+                        key={styleOpt.id}
+                        onClick={() => setSelectedStyle(styleOpt.id)}
+                        className={`
+                          py-2 px-1 rounded-xl text-xs font-bold transition-all duration-200 flex flex-col items-center gap-1 border
+                          ${selectedStyle === styleOpt.id
+                            ? 'bg-primary-50 dark:bg-primary-950/20 text-primary-600 dark:text-primary-400 border-primary-400 dark:border-primary-800 shadow-sm'
+                            : 'bg-white dark:bg-surface-800 text-surface-500 border-surface-200 dark:border-surface-700 hover:border-surface-300'
+                          }
+                        `}
+                      >
+                        <span className="text-lg">{styleOpt.emoji}</span>
+                        <span>{styleOpt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* เลือกจานสีพรีเมียม */}
+                <div>
+                  <p className="text-xs font-bold text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1">
+                    <span>🎨</span>
+                    {lang === 'th' ? 'จานสีพรีเมียม (Premium Presets)' : 'Premium Color Presets'}
+                  </p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {PRESET_PALETTES.map((palette) => (
+                      <button
+                        key={palette.name}
+                        onClick={() => {
+                          setSelectedPrimaryColor(palette.primary)
+                          setSelectedSecondaryColor(palette.secondary)
+                          setSelectedBackgroundColor(palette.background)
+                          setUseCustomColors(true)
+                        }}
+                        className="p-2 rounded-xl bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 hover:border-primary-400 dark:hover:border-primary-800 transition-all flex flex-col items-center gap-1.5"
+                      >
+                        {/* 3 Color DOTS */}
+                        <div className="flex gap-1 items-center justify-center">
+                          <span className="w-3 h-3 rounded-full border border-black/10 dark:border-white/10" style={{ backgroundColor: palette.primary }} />
+                          <span className="w-3 h-3 rounded-full border border-black/10 dark:border-white/10" style={{ backgroundColor: palette.secondary }} />
+                          <span className="w-3 h-3 rounded-full border border-black/10 dark:border-white/10" style={{ backgroundColor: palette.background }} />
+                        </div>
+                        <span className="text-[9px] text-slate-500 dark:text-slate-400 font-sans truncate w-full text-center">{palette.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* เลือกสีเองอย่างอิสระ */}
+                <div>
+                  <button
+                    onClick={() => setUseCustomColors(!useCustomColors)}
+                    className="text-[11px] font-bold text-primary-600 dark:text-primary-400 flex items-center gap-1 hover:underline mb-2"
+                  >
+                    <span>⚙️</span>
+                    {lang === 'th' ? 'กำหนดสีตามใจชอบ (Custom Theme Colors)' : 'Customize theme colors'}
+                  </button>
+
+                  {useCustomColors && (
+                    <div className="grid grid-cols-3 gap-3 p-3 bg-white dark:bg-surface-800/80 rounded-2xl border border-surface-200 dark:border-surface-700/80 animate-in slide-in-from-top-2 duration-200">
+                      <div className="flex flex-col items-center gap-1">
+                        <label className="text-[9px] font-bold text-surface-500 uppercase tracking-wider">{lang === 'th' ? 'สีหลัก' : 'Primary'}</label>
+                        <input
+                          type="color"
+                          value={selectedPrimaryColor}
+                          onChange={(e) => setSelectedPrimaryColor(e.target.value)}
+                          className="w-10 h-10 rounded-lg cursor-pointer border border-surface-200 dark:border-surface-700 bg-transparent p-0 overflow-hidden"
+                        />
+                        <span className="text-[9px] font-mono font-medium text-surface-400 mt-0.5">{selectedPrimaryColor.toUpperCase()}</span>
+                      </div>
+                      <div className="flex flex-col items-center gap-1">
+                        <label className="text-[9px] font-bold text-surface-500 uppercase tracking-wider">{lang === 'th' ? 'สีรอง' : 'Secondary'}</label>
+                        <input
+                          type="color"
+                          value={selectedSecondaryColor}
+                          onChange={(e) => setSelectedSecondaryColor(e.target.value)}
+                          className="w-10 h-10 rounded-lg cursor-pointer border border-surface-200 dark:border-surface-700 bg-transparent p-0 overflow-hidden"
+                        />
+                        <span className="text-[9px] font-mono font-medium text-surface-400 mt-0.5">{selectedSecondaryColor.toUpperCase()}</span>
+                      </div>
+                      <div className="flex flex-col items-center gap-1">
+                        <label className="text-[9px] font-bold text-surface-500 uppercase tracking-wider">{lang === 'th' ? 'พื้นหลัง' : 'Background'}</label>
+                        <input
+                          type="color"
+                          value={selectedBackgroundColor}
+                          onChange={(e) => setSelectedBackgroundColor(e.target.value)}
+                          className="w-10 h-10 rounded-lg cursor-pointer border border-surface-200 dark:border-surface-700 bg-transparent p-0 overflow-hidden"
+                        />
+                        <span className="text-[9px] font-mono font-medium text-surface-400 mt-0.5">{selectedBackgroundColor.toUpperCase()}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            )}
+
             {/* Helper info */}
             <div className="px-5 py-3 bg-surface-50 dark:bg-surface-800/30 text-[11px] text-surface-500 dark:text-surface-400 border-b border-surface-100 dark:border-surface-800 flex items-center gap-1.5">
               <span className="text-xs">💡</span>
@@ -397,7 +562,15 @@ export default function KnowledgeTabs() {
                 {lang === 'th' ? 'ยกเลิก' : 'Cancel'}
               </button>
               <button
-                onClick={() => handleActionClick(selectedAction, selectedFilesForAction, selectedDetailLevel)}
+                onClick={() => {
+                  const customColorsOpt = {
+                    style: selectedStyle,
+                    primaryColor: selectedPrimaryColor,
+                    secondaryColor: selectedSecondaryColor,
+                    backgroundColor: selectedBackgroundColor
+                  }
+                  handleActionClick(selectedAction, selectedFilesForAction, selectedDetailLevel, customColorsOpt)
+                }}
                 className="px-5 py-2 rounded-xl text-xs font-semibold bg-primary-600 hover:bg-primary-700 text-white shadow-sm transition-colors"
               >
                 {lang === 'th' ? 'สร้างข้อมูลเชิงลึก' : 'Generate Insights'}

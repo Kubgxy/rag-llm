@@ -61,10 +61,9 @@ class VectorStoreManager:
         Returns:
             StorageContext ที่พร้อมใช้งาน
         """
-        # ใช้ table name เดียวแชร์กัน โดยแยกข้อมูลด้วย metadata.session_id
-        table_name = f"embeddings_{session_id.lower().replace('-', '_')}"
-        print(f"📦 [VectorStore] สร้าง storage สำหรับ session: {session_id}")
-        print(f"   Table name: {table_name}")
+        # รวบรวมข้อมูล embeddings ไว้ในตารางเดียว
+        table_name = "document_embeddings"
+        print(f"📦 [VectorStore] สร้าง storage สำหรับ session: {session_id} (รวบใน table: {table_name})")
 
         vector_store = self._get_vector_store(table_name=table_name)
 
@@ -127,6 +126,72 @@ class VectorStoreManager:
         )
         self.save_bm25_retriever(session_id, bm25_retriever)
 
+    def _rebuild_bm25_from_db(self, session_id: str):
+        """ดึงข้อมูล chunks จาก pgvector ใน DB แล้วสร้าง BM25 index ใหม่"""
+        from sqlalchemy import create_engine, text
+        from llama_index.core.schema import TextNode
+        from llama_index.retrievers.bm25 import BM25Retriever
+
+        table_name = "data_document_embeddings"
+        print(f"🔄 [BM25 Rebuild] กำลังดึงข้อมูลของ session {session_id} จากตาราง {table_name} เพื่อสร้าง BM25...")
+
+        try:
+            # ใช้ sync connection URL
+            engine = create_engine(settings.DATABASE_URL_SYNC)
+            with engine.connect() as conn:
+                # ตรวจสอบความถูกต้องของตารางก่อนรัน query ป้องกัน table not found error
+                table_check = conn.execute(text(
+                    "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = :table_name)"
+                ), {"table_name": table_name}).scalar()
+
+                if not table_check:
+                    print(f"⚠️ [BM25 Rebuild] ไม่พบตาราง {table_name} ในฐานข้อมูล")
+                    return None
+
+                # ดึงเฉพาะคอลัมน์ที่จำเป็นสำหรับสร้าง nodes และกรองข้อมูลตาม session_id ใน metadata_
+                result = conn.execute(
+                    text(f"SELECT text, node_id, metadata_ FROM {table_name} WHERE metadata_->>'session_id' = :session_id"),
+                    {"session_id": str(session_id)}
+                )
+                rows = result.fetchall()
+
+            if not rows:
+                print(f"⚠️ [BM25 Rebuild] ตาราง {table_name} ไม่มีข้อมูล")
+                return None
+
+            print(f"📦 [BM25 Rebuild] ดึงข้อมูลได้ {len(rows)} Chunks. กำลังสร้าง Nodes...")
+            nodes = []
+            for row in rows:
+                text_content = row[0]
+                node_id = row[1]
+                metadata = row[2] or {}
+
+                node = TextNode(
+                    text=text_content,
+                    id_=node_id,
+                    metadata=metadata
+                )
+                nodes.append(node)
+
+            # สร้าง BM25 Retriever และเซฟไฟล์ไว้
+            bm25_retriever = BM25Retriever.from_defaults(
+                nodes=nodes,
+                similarity_top_k=2,
+                tokenizer=thai_tokenizer,
+            )
+
+            # บันทึกลง cache และ persist ลงดิสก์
+            self.bm25_nodes[session_id] = nodes
+            self._save_bm25_nodes(session_id, nodes)
+            self.save_bm25_retriever(session_id, bm25_retriever)
+
+            print(f"✅ [BM25 Rebuild] สร้างและบันทึก BM25 สำหรับ session {session_id} สำเร็จ!")
+            return bm25_retriever
+
+        except Exception as e:
+            print(f"⚠️ [BM25 Rebuild] เกิดข้อผิดพลาดในการ Rebuild: {e}")
+            return None
+
     def get_bm25_retriever(self, session_id: str):
         """ดึง BM25 Retriever สำหรับ session"""
         if session_id in self.bm25_retrievers:
@@ -153,7 +218,43 @@ class VectorStoreManager:
             except Exception as e:
                 print(f"⚠️ [BM25] ไม่สามารถโหลด BM25 จากไฟล์ได้: {e}")
                 
+        # หากไม่พบไฟล์หรือโหลดไม่สำเร็จ ให้พยายาม rebuild จาก database
+        rebuilt_retriever = self._rebuild_bm25_from_db(session_id)
+        if rebuilt_retriever:
+            return rebuilt_retriever
+            
         return None
+
+    def delete_session_embeddings(self, session_id: str):
+        """ลบข้อมูล embeddings ทั้งหมดของ session นั้นๆ ออกจากตารางหลักและลบไฟล์ BM25"""
+        from sqlalchemy import create_engine, text
+        table_name = "data_document_embeddings"
+        print(f"🗑️ [VectorStore] กำลังลบ embeddings ของ session: {session_id} จากตาราง {table_name}")
+        try:
+            engine = create_engine(settings.DATABASE_URL_SYNC)
+            with engine.connect() as conn:
+                with conn.begin():
+                    # ลบข้อมูลที่ metadata_->>'session_id' ตรงกับ session_id
+                    result = conn.execute(
+                        text(f"DELETE FROM {table_name} WHERE metadata_->>'session_id' = :session_id"),
+                        {"session_id": str(session_id)}
+                    )
+                    print(f"🗑️ [VectorStore] ลบสำเร็จ! จำนวนแถวที่ลบ: {result.rowcount}")
+                    
+            # ลบ BM25 files และ memory cache
+            if session_id in self.bm25_retrievers:
+                del self.bm25_retrievers[session_id]
+            if session_id in self.bm25_nodes:
+                del self.bm25_nodes[session_id]
+                
+            persist_path = os.path.join(self.bm25_persist_dir, f"bm25_{session_id}.pkl")
+            if os.path.exists(persist_path):
+                os.remove(persist_path)
+            nodes_persist_path = os.path.join(self.bm25_persist_dir, f"bm25_nodes_{session_id}.pkl")
+            if os.path.exists(nodes_persist_path):
+                os.remove(nodes_persist_path)
+        except Exception as e:
+            print(f"⚠️ [VectorStore] ล้มเหลวในการลบ embeddings ของ session {session_id}: {e}")
 
     def close(self):
         """ปิดการเชื่อมต่อหรือเคลียร์ทรัพยากร"""

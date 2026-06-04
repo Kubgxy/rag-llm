@@ -52,7 +52,12 @@ export function useUpload() {
   const processFile = useCallback(
     async (file) => {
       if (!file) return
-      if (file.type !== 'application/pdf') { addToast(t('uploadPdfOnly'), 'error'); return }
+      const allowedExtensions = ['.pdf', '.txt', '.md', '.docx', '.pptx', '.csv', '.xlsx']
+      const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
+      if (!allowedExtensions.includes(fileExtension)) { 
+        addToast(t('uploadPdfOnly'), 'error'); 
+        return 
+      }
 
       // 🔧 Check total size limit
       const currentDocs = useDocumentStore.getState().documents || []

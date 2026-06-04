@@ -387,6 +387,20 @@ export const generateKnowledgeAction = async (actionType, sessionId, options = {
     payload.detail_level = options.detailLevel
   }
 
+  // Forward style and custom colors to Backend
+  if (options.style) {
+    payload.style = options.style
+  }
+  if (options.primaryColor) {
+    payload.primary_color = options.primaryColor
+  }
+  if (options.secondaryColor) {
+    payload.secondary_color = options.secondaryColor
+  }
+  if (options.backgroundColor) {
+    payload.background_color = options.backgroundColor
+  }
+
   const { data } = await api.post('/actions/generate', payload)
   return data
 }
@@ -451,6 +465,21 @@ export const restartBackend = async (device = null, modelNames = []) => {
     payload.model_names = modelNames
   }
   const { data } = await api.post('/runtime/restart', payload)
+  return data
+}
+
+/**
+ * Update an existing action's editor state and answer
+ * POST /actions/update/{actionId}
+ * @param {string} actionId
+ * @param {object} editorState
+ * @param {string} answer
+ */
+export const updateKnowledgeAction = async (actionId, editorState, answer) => {
+  const { data } = await api.post(`/actions/update/${actionId}`, {
+    editor_state: editorState,
+    answer,
+  })
   return data
 }
 

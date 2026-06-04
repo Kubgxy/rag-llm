@@ -225,6 +225,253 @@ class LLMService:
         
         start_time = time.time()
         print(f"💬 [Query] {session_id}: {query}")
+
+        # 📊 [Routing] ตรวจสอบไฟล์ทั้งหมดในเซสชันเพื่อประมวลผลระบบนำร่องไฮบริด (Hybrid Router)
+        from sqlalchemy import select
+        from app.database import async_session
+        from app.db_models import Document as DbDocument
+        import uuid
+        import os
+        import sqlite3
+        import re
+        
+        all_session_docs = []
+        try:
+            session_uuid = uuid.UUID(session_id)
+            async with async_session() as db:
+                result = await db.execute(
+                    select(DbDocument).where(
+                        DbDocument.session_id == session_uuid,
+                        DbDocument.status.in_(["completed", "ready_for_chat"])
+                    )
+                )
+                all_session_docs = result.scalars().all()
+        except Exception as route_db_err:
+            print(f"⚠️ [Routing DB Error] ดึงรายการไฟล์ในเซสชันล้มเหลว: {route_db_err}")
+            
+        # แยกกลุ่มประเภทไฟล์
+        tabular_docs = [d for d in all_session_docs if d.source_type in ["csv", "xlsx"]]
+        text_docs = [d for d in all_session_docs if d.source_type not in ["csv", "xlsx"]]
+        
+        selected_mentions = []
+        clean_query = query
+        
+        # 1. ค้นหา Manual Mention (เช่น /filename.ext หรือ /filename)
+        slash_mentions = re.findall(r'/([^\s/]+)', query)
+        for mention in slash_mentions:
+            mention_lower = mention.lower()
+            for doc in all_session_docs:
+                base_name = os.path.splitext(doc.file_name)[0]
+                clean_base_name = re.sub(r'[-_]\d{10,20}$', '', base_name)
+                # แมตช์ตรงตัว, แมตช์ไม่มีนามสกุล, หรือเป็นส่วนหนึ่งของชื่อไฟล์หลัก
+                if (mention_lower == doc.file_name.lower() or 
+                    mention_lower == base_name.lower() or
+                    (len(mention_lower) >= 3 and mention_lower in clean_base_name.lower()) or
+                    (len(mention_lower) >= 3 and clean_base_name.lower() in mention_lower)):
+                    if doc.file_name not in selected_mentions:
+                        selected_mentions.append(doc.file_name)
+                    # ลบ tag mention ออกจาก query เพื่อให้ LLM รับคำถามสะอาด
+                    clean_query = clean_query.replace(f"/{mention}", "").strip()
+                    
+        # 2. ค้นหา Auto-linking (เมื่อไม่ได้พิมพ์สัญลักษณ์ / แต่พิมพ์ชื่อไฟล์ตรงๆ หรือใกล้เคียง)
+        if not selected_mentions:
+            for doc in all_session_docs:
+                base_name = os.path.splitext(doc.file_name)[0]
+                clean_base_name = re.sub(r'[-_]\d{10,20}$', '', base_name)
+                # แมตช์เมื่อพิมพ์ชื่อไฟล์เต็ม หรือชื่อหลัก (ความยาวขั้นต่ำ 4 ตัวเพื่อไม่ให้เพี้ยน)
+                if (doc.file_name.lower() in query.lower() or 
+                    (len(clean_base_name) >= 4 and clean_base_name.lower() in query.lower())):
+                    if doc.file_name not in selected_mentions:
+                        selected_mentions.append(doc.file_name)
+                        
+        # 3. กำหนดกลุ่มเป้าหมายไฟล์ (Target files)
+        target_files = selected_files or []
+        if selected_mentions:
+            print(f"🎯 [Routing] ตรวจพบไฟล์ที่ระบุในคำถาม (Mentions/Auto-link): {selected_mentions}")
+            target_files = selected_mentions
+            # กรองเนื้อความคำถามออกหากใช้ manual mention
+            query = clean_query
+            if not query.strip():
+                query = "สรุปเนื้อหาในเอกสารนี้"
+            
+        # กรองรายการเอกสารตาม target_files (หากมี)
+        if target_files:
+            tabular_docs = [d for d in tabular_docs if d.file_name in target_files]
+            text_docs = [d for d in text_docs if d.file_name in target_files]
+            selected_files = target_files
+        else:
+            # 4. Rule-based Semantic Classifier (เมื่อไม่ได้ระบุไฟล์เจาะจง และมีไฟล์ชนิดปะปนในเซสชัน)
+            if tabular_docs and text_docs:
+                math_keywords = [
+                    "เฉลี่ย", "ผลรวม", "รวม", "สถิติ", "ยอดขาย", "ตาราง", "จำนวน", "กี่", "คำนวณ", "คิวรี",
+                    "average", "sum", "total", "count", "math", "statistics", "table", "query", "calc",
+                    "max", "min", "สูงสุด", "ต่ำสุด", "เฉลี่ยรวม", "บวก", "ลบ", "คูณ", "หาร", "ร้อยละ", "เปอร์เซ็นต์"
+                ]
+                if any(kw in query.lower() for kw in math_keywords):
+                    print("📊 [Routing Classifier] พบคำค้นหากลุ่มตาราง/คณิตศาสตร์ -> นำทางไป Tabular Agent")
+                else:
+                    print("📝 [Routing Classifier] คำถามทั่วไป/ข้อมูลเชิงสรุป -> นำทางไป Text-based RAG")
+                    # เคลียร์ tabular_docs เพื่อให้ bypass ไปทำ RAG เวกเตอร์
+                    tabular_docs = []
+
+        # หากเลือกแล้วเหลือเฉพาะตาราง ให้สั่งรัน Tabular Agent
+        if tabular_docs:
+            print(f"📊 [Routing] ตรวจพบไฟล์ตารางข้อมูลในเซสชัน: {[d.file_name for d in tabular_docs]}")
+            
+            # โหลด Schema ของแต่ละตารางจาก SQLite
+            db_path = os.path.join("data", "tabular.db")
+            schemas_list = []
+            
+            if os.path.exists(db_path):
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                try:
+                    for doc in tabular_docs:
+                        safe_filename = re.sub(r'[^a-zA-Z0-9_]', '_', os.path.splitext(doc.file_name)[0]).lower()
+                        safe_session = re.sub(r'[^a-zA-Z0-9_]', '_', session_id).lower()
+                        table_name = f"table_{safe_session}_{safe_filename}"
+                        
+                        cursor.execute(f"PRAGMA table_info({table_name})")
+                        columns = cursor.fetchall()
+                        if columns:
+                            schema_desc = f"ตารางชื่อ: {table_name} (อัปโหลดมาจากไฟล์: {doc.file_name})\nคอลัมน์:\n"
+                            for col in columns:
+                                schema_desc += f" - {col[1]} (ประเภท: {col[2]})\n"
+                            schemas_list.append(schema_desc)
+                except Exception as e:
+                    print(f"⚠️ [Routing Error] ไม่สามารถอ่าน SQLite schema: {e}")
+                finally:
+                    conn.close()
+                    
+            if schemas_list:
+                schemas_context = "\n".join(schemas_list)
+                print(f"🔍 [Agent] ส่งโครงสร้างตารางไปวิเคราะห์กับ {settings.ACTION_LLM_MODEL}...")
+                
+                # ออกแบบ Prompt สำหรับ qwen2.5-coder:7b
+                code_prompt = f"""You are a senior data analyst agent. Your task is to write a Python script that queries a local SQLite database at 'data/tabular.db' to answer the user's question.
+
+The SQLite database contains the following tables and schemas:
+{schemas_context}
+
+User Question: "{query}"
+
+Rules:
+1. Connect to SQLite using:
+   ```python
+   import sqlite3
+   conn = sqlite3.connect('data/tabular.db')
+   ```
+2. Write Python code using pandas or sqlite3. For example:
+   ```python
+   import pandas as pd
+   df = pd.read_sql_query('SELECT * FROM table_name', conn)
+   ```
+3. Run necessary operations (filtering, aggregation, calculations) to answer the user's question.
+4. You MUST print the final result/dataframe/answer using `print()`. Keep the output clean and human-readable.
+5. Do NOT modify the database (no INSERT, UPDATE, DELETE, DROP, CREATE TABLE). Only read data.
+6. Return ONLY the executable python code block, enclosed in ```python and ```. Do not write explanations outside the code block.
+
+Let's write the python script:"""
+                
+                # เรียกใช้โมเดล qwen2.5-coder:7b
+                try:
+                    code_response = await self.query_direct(code_prompt, settings.ACTION_LLM_MODEL)
+                    response_text = code_response.get("answer", "")
+                    
+                    code = ""
+                    code_match = re.search(r'```python\s*(.*?)\s*```', response_text, re.DOTALL)
+                    if code_match:
+                        code = code_match.group(1).strip()
+                    else:
+                        code = response_text.strip()
+                        
+                    # รันโค้ดและดักจับผลลัพธ์ (พร้อมระบบ Self-Healing 1 รอบ)
+                    captured_output = ""
+                    error_msg = None
+                    
+                    for run_try in range(2):
+                        import sys
+                        import io
+                        import traceback
+                        
+                        old_stdout = sys.stdout
+                        redirected_output = io.StringIO()
+                        sys.stdout = redirected_output
+                        
+                        exec_globals = {}
+                        exec_locals = {}
+                        
+                        try:
+                            exec(code, exec_globals, exec_locals)
+                            error_msg = None
+                        except Exception as e:
+                            error_msg = traceback.format_exc()
+                        finally:
+                            sys.stdout = old_stdout
+                            captured_output = redirected_output.getvalue()
+                            
+                        if not error_msg:
+                            break
+                        else:
+                            print(f"⚠️ [Sandbox Error] โค้ดรันไม่สำเร็จ (รอบที่ {run_try+1}): {error_msg.splitlines()[-1]}")
+                            fix_prompt = f"""The python code you wrote threw the following error:
+```
+{error_msg}
+```
+
+Here was the code you wrote:
+```python
+{code}
+```
+
+Please fix the error and write the corrected code. Keep in mind:
+- Database path is 'data/tabular.db'
+- Only return the python block enclosed in ```python and ```."""
+                            code_response = await self.query_direct(fix_prompt, settings.ACTION_LLM_MODEL)
+                            response_text = code_response.get("answer", "")
+                            code_match = re.search(r'```python\s*(.*?)\s*```', response_text, re.DOTALL)
+                            code = code_match.group(1).strip() if code_match else response_text.strip()
+
+                    print(f"✅ [Sandbox Run] รันโค้ดสำเร็จ ผลลัพธ์ที่ดักจับได้ ({len(captured_output)} ตัวอักษร)")
+                    
+                    # นำผลลัพธ์มาส่งต่อให้ LLM หลักสังเคราะห์คำตอบภาษาไทย
+                    final_prompt = f"""คุณคือผู้เชี่ยวชาญด้านการวิเคราะห์ข้อมูลและนักวิทยาศาสตร์ข้อมูล (Data Scientist)
+ผู้ใช้งานถามคำถาม: "{query}"
+
+ระบบได้รันโค้ด Python เพื่อดึงข้อมูลวิเคราะห์จากตารางในระบบเรียบร้อยแล้ว โดยได้ผลลัพธ์จากการรัน (Execution Result) ดังนี้:
+---------------------
+{captured_output or 'ไม่มีผลลัพธ์แสดงออกมาจากโค้ด (ไม่มีข้อมูลที่ตรงความต้องการ)'}
+---------------------
+
+คำสั่ง:
+1. จงสรุปและตอบคำถามของผู้ใช้เป็นภาษาไทยอย่างชัดเจน แม่นยำ และเป็นมืออาชีพตามผลลัพธ์การคิวรีด้านบน
+2. หากผลลัพธ์มีการคำนวณตัวเลขหรือสรุปยอด ให้อธิบายวิธีการสถิติคร่าวๆ (เช่น ยอดรวมเฉลี่ย หรือจำนวนแถว) ให้ผู้ใช้อ่านเข้าใจง่าย
+3. ในการตอบคำถาม ให้แนบการอ้างอิงไฟล์โดยใช้รูปแบบ [ชื่อไฟล์] เสมอ (เช่น จากข้อมูลในไฟล์ [sales.csv] ...) เพื่อบอกผู้ใช้ว่าอ้างอิงจากตารางไหน
+
+คำตอบ:"""
+                    
+                    final_response = await self.query_direct(final_prompt, model_name)
+                    
+                    # สร้าง citations คืนค่าให้หน้าบ้าน
+                    citations = []
+                    for doc in tabular_docs:
+                        citations.append({
+                            "file_name": doc.file_name,
+                            "page_label": "database",
+                            "text_snippet": f"คิวรีข้อมูลตารางสำเร็จด้วยการรันโค้ดวิเคราะห์โครงสร้างตาราง (จำนวน: {doc.page_count or 'N/A'} แถว)",
+                            "similarity_score": 1.0,
+                            "source_type": doc.source_type,
+                            "url": None
+                        })
+                        
+                    return {
+                        "thinking": final_response.get("thinking"),
+                        "answer": final_response.get("answer"),
+                        "citations": citations
+                    }
+                except Exception as agent_err:
+                    print(f"❌ [Agent Error] ล้มเหลวในกระบวนการทำงานของ Agent: {agent_err}")
+                    # ถ้า Agent ล้มเหลว ให้ทำ RAG ทั่วไปต่อเป็น fallback
         
         # กำหนด top_k ตาม runtime หรือ custom top_k
         current_runtime = runtime_manager.get_runtime()
@@ -249,24 +496,29 @@ class LLMService:
         )
         print(f"   ⏱️ Create index: {time.time() - t1:.2f}s")
 
-        # 1. Vector Retriever - ใช้ effective_top_k ที่กำหนดตาม runtime พร้อมกรองไฟล์ที่เลือก (ถ้ามี)
-        retriever_kwargs = {"similarity_top_k": effective_top_k}
+        # 1. Vector Retriever - ใช้ effective_top_k ที่กำหนดตาม runtime พร้อมกรองตาม session_id และไฟล์ที่เลือก (ถ้ามี)
+        from llama_index.core.vector_stores import MetadataFilters, MetadataFilter
+        from llama_index.core.vector_stores.types import FilterOperator
+        
+        # กรองข้อมูลให้ดึงเฉพาะของ session ปัจจุบันเสมอ
+        filters_list = [
+            MetadataFilter(key="session_id", value=str(session_id))
+        ]
+        
         if selected_files:
-            from llama_index.core.vector_stores import MetadataFilters, MetadataFilter, FilterCondition
-            print(f"   🎯 [Metadata Filter] ค้นหาเฉพาะไฟล์: {selected_files}")
+            print(f"   🎯 [Metadata Filter] ค้นหาใน session: {session_id} เฉพาะไฟล์: {selected_files}")
             if len(selected_files) == 1:
-                filters = MetadataFilters(
-                    filters=[MetadataFilter(key="file_name", value=selected_files[0])]
-                )
+                filters_list.append(MetadataFilter(key="file_name", value=selected_files[0]))
             else:
-                filters = MetadataFilters(
-                    filters=[
-                        MetadataFilter(key="file_name", value=file) for file in selected_files
-                    ],
-                    condition=FilterCondition.OR
-                )
-            retriever_kwargs["filters"] = filters
-
+                filters_list.append(MetadataFilter(key="file_name", value=selected_files, operator=FilterOperator.IN))
+        else:
+            print(f"   🎯 [Metadata Filter] ค้นหาเฉพาะข้อมูลใน session: {session_id}")
+            
+        retriever_kwargs = {
+            "similarity_top_k": effective_top_k,
+            "filters": MetadataFilters(filters=filters_list)
+        }
+        
         vector_retriever = index.as_retriever(**retriever_kwargs)
 
         # 2. BM25 Retriever

@@ -38,8 +38,8 @@ class Settings(BaseSettings):
     # CPU_LLM_NUM_CTX: int = 4096
     # CPU_LLM_NUM_PREDICT: int = 256
     LLM_NUM_CTX: int = 16384
-    CPU_LLM_NUM_CTX: int = 8192
-    CPU_LLM_NUM_PREDICT: int = 512
+    CPU_LLM_NUM_CTX: int = 4096
+    CPU_LLM_NUM_PREDICT: int = 1024
     LLM_REQUEST_TIMEOUT: float = 600.0
     
 

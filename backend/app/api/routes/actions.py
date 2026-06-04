@@ -1,13 +1,13 @@
 import json
-import os
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional, List
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
-from app.schemas import ActionGenerateRequest, ActionGenerateResponse, ActionType
+from app.schemas import ActionGenerateRequest, ActionGenerateResponse, ActionType, ActionUpdateRequest
 from app.services import llm_service, document_processor, session_service
 from app.database import get_db
-from app.db_models import User
+from app.db_models import User, GeneratedAction
 from app.services.auth_service import get_current_user
 import uuid as uuid_mod
 
@@ -58,11 +58,12 @@ def _build_action_prompt(action_type: ActionType, language: str, user_goal: Opti
 [เงื่อนไขการทำงานสำหรับสไลด์ละเอียดพิเศษ]:
 1. ตอบกลับเป็น Raw JSON Object เท่านั้น ห้ามมีข้อความเกริ่นนำหรือปิดท้ายใดๆ นอกเหนือจาก JSON
 2. แต่ละหน้าสไลด์ต้องมี 'slide_description' เพื่อเขียนสรุปภาพรวมเชิงนโยบายอย่างกว้างขวางและเจาะลึก (ความยาว 55-65 คำ เสมอ!)
-3. แต่ละหน้าสไลด์ต้องมี 'key_points' 3-4 ข้อ และ**แต่ละข้อต้องมีความยาว 35-55 คำ ห้ามต่ำกว่านี้เด็ดขาด** (โดยต้องเขียนอธิบายรายละเอียดเป็นประโยคยาวๆ 2-3 ประโยคประกอบกัน ห้ามสรุปเป็นข้อสั้นๆ หรือคำเดี่ยวๆ เพื่อให้เต็มพื้นที่หน้าจอและจัดวางองค์ประกอบ UI ได้สมดุลสวยงาม)
-4. บังคับเลือก 'icon_name' จากรายการนี้เท่านั้น: [database, server, shield-check, users, bar-chart, activity, cpu, cloud-lightning]
-5. ต้องแบ่งหน้าสไลด์ (slides) แยกกันอย่างอิสระตามหัวข้อหรือโครงการจริง โดยแนะนำสร้าง 7-12 หน้าสไลด์ขึ้นไป
+3. แต่ละหน้าสไลด์ต้องระบุ 'layout_type' เสมอ โดยเลือกจาก: ["hero", "grid-card", "timeline", "stat", "split-media"] ตามความสอดคล้องเชิงความหมายของเนื้อหาในหน้านั้นๆ (เช่น สไลด์เปิดหรือสไลด์หัวข้อหลักที่เน้นรูปภาพและคำบรรยายเดี่ยวให้เลือก 'hero' หรือ 'split-media', สไลด์นำเสนอหลายประเด็นที่มีหัวข้อย่อยเท่าๆ กันให้เลือก 'grid-card', สไลด์กระบวนการหรือขั้นตอนเชิงลำดับเวลาให้เลือก 'timeline', สไลด์สรุปตัวเลขสถิติหรือดัชนีชี้วัดหลักให้เลือก 'stat')
+4. หน้าสไลด์ต้องมี 'key_points' 3-4 ข้อ และ**แต่ละข้อต้องมีความยาว 35-55 คำ ห้ามต่ำกว่านี้เด็ดขาด** (โดยต้องเขียนอธิบายรายละเอียดเป็นประโยคยาวๆ 2-3 ประโยคประกอบกัน ห้ามสรุปเป็นข้อสั้นๆ หรือคำเดี่ยวๆ เพื่อให้เต็มพื้นที่หน้าจอและจัดวางองค์ประกอบ UI ได้สมดุลสวยงาม)
+5. บังคับเลือก 'icon_name' จากรายการนี้เท่านั้น: [database, server, shield-check, users, bar-chart, activity, cpu, cloud-lightning]
+6. ต้องแบ่งหน้าสไลด์ (slides) แยกกันอย่างอิสระตามหัวข้อหรือโครงการจริง โดยแนะนำสร้าง 7-12 หน้าสไลด์ขึ้นไป
 
-[โครงสร้าง JSON ที่บังคับ (พร้อมตัวอย่างดีเทลเชิงลึก)]:
+[โครงสร้าง JSON ที่บังคับ (พร้อมตัวอย่างดีเทลเชิงลึกหลากเลย์เอาต์)]:
 {
   "title": "รายงานวิเคราะห์ข้อมูลและระบบไอทีขององค์กร",
   "audience": "ผู้บริหารระดับสูงและสถาปนิกด้านซอฟต์แวร์",
@@ -71,11 +72,24 @@ def _build_action_prompt(action_type: ActionType, language: str, user_goal: Opti
       "slide_number": 1,
       "slide_title": "โครงการสถาปัตยกรรม Smart Farm Monitoring ผ่านคลาวด์",
       "icon_name": "cpu",
+      "layout_type": "hero",
       "slide_description": "ภาพรวมและโครงสร้างเชิงลึกของสถาปัตยกรรมระบบ Smart Farm Monitoring ซึ่งออกแบบขึ้นเพื่อเฝ้าระวังและเก็บสถิติด้านการเกษตรผ่านเทคโนโลยีคลาวด์ โดยระบบนี้มุ่งเน้นการประมวลผลข้อมูลเซ็นเซอร์ความชื้นและอุณหภูมิในระดับเรียลไทม์เพื่อมอบข้อมูลที่มีความแม่นยำสูงแก่ผู้ควบคุมฟาร์มทั่วประเทศในรูปแบบที่เข้าใจง่ายและสอดคล้องกับมาตรฐานอุตสาหกรรมยุคใหม่",
       "key_points": [
         "สถาปัตยกรรมนี้ใช้เซ็นเซอร์วัดความชื้นในดินและอุณหภูมิอากาศจำนวนมากกว่า 150 จุดทั่วแปลงเกษตร เพื่อส่งข้อมูลดิบเข้ามาประมวลผลที่ระบบคลาวด์ส่วนกลางทุกๆ 10 วินาที ทำให้ได้สถิติที่มีค่าความคลาดเคลื่อนต่ำกว่า 0.05% ซึ่งนำไปใช้ต่อยอดในอัลกอริทึมพยากรณ์อากาศได้ทันที",
         "ระบบการเชื่อมต่อถูกขับเคลื่อนผ่านโปรโตคอล MQTT บนเครือข่ายสถาปัตยกรรม LoRaWAN ที่มีคุณสมบัติเด่นในการประหยัดพลังงานระดับสูง ช่วยให้แบตเตอรี่ของอุปกรณ์เซ็นเซอร์ภาคสนามมีอายุการใช้งานยืนยาวสูงสุดถึง 5 ปีเต็มโดยไม่ต้องเปลี่ยนบ่อยครั้ง ส่งผลให้ลดค่าใช้จ่ายการซ่อมบำรุงรักษาไปได้มากถึง 45%",
         "ชุดประมวลผลข้อมูลหลักเลือกใช้เซิร์ฟเวอร์ Apache Kafka ร่วมกับฐานข้อมูลยืดหยุ่นสูง เพื่อรองรับการนำเข้าข้อมูลขนาดใหญ่พิเศษที่มีอัตราการเขียนข้อมูลแบบเรียลไทม์สูงถึง 5,000 รายการต่อวินาที ทำให้ทีมวิเคราะห์สามารถเรียกดูแดชบอร์ดสรุปผลการเก็บเกี่ยวได้ทันทีโดยไม่มีการหน่วงหรือสะดุดของระบบ"
+      ]
+    },
+    {
+      "slide_number": 2,
+      "slide_title": "ขั้นตอนกระบวนการดึงข้อมูลของระบบ Smart Farm",
+      "icon_name": "server",
+      "layout_type": "timeline",
+      "slide_description": "ขั้นตอนเชิงระบบในการสับเปลี่ยนและส่งผ่านสัญญาณข้อมูลเซ็นเซอร์ความร้อนและความชื้นดิบจากแปลงเกษตรเพื่อแปลงรูปเป็นอินไซด์ที่มีประโยชน์",
+      "key_points": [
+        "ขั้นตอนแรก: เซ็นเซอร์ภาคสนามเก็บตัวอย่างความชื้นและส่งสัญญาณไร้สายดิบผ่าน LoRaWAN Gateway ไปยังเครือข่ายขององค์กรอย่างปลอดภัย",
+        "ขั้นตอนสอง: ระบบเกตเวย์รับข้อมูลดิบและทำการกรองสัญญาณรบกวนก่อนนำส่งเข้าคิวสตรีมมิ่งผ่าน Apache Kafka เพื่อรอการกระจายไปยังดาต้าสโตร์",
+        "ขั้นตอนสาม: ดาต้าสโตร์ทำการบันทึกและประมวลผลผลลัพธ์พร้อมทั้งดึงสคริปต์ RAG มาตอบข้อซักถามขึ้นแสดงผลบนแดชบอร์ดของผู้ใช้งานทันที"
       ]
     }
   ]
@@ -91,11 +105,12 @@ def _build_action_prompt(action_type: ActionType, language: str, user_goal: Opti
 [เงื่อนไขการทำงานสำหรับสไลด์สรุปกระชับ]:
 1. ตอบกลับเป็น Raw JSON Object เท่านั้น ห้ามมีข้อความเกริ่นนำหรือปิดท้าย
 2. แต่ละหน้าสไลด์มี 'slide_description' สรุปใจความสำคัญที่เข้าใจง่าย (ความยาว 15-25 คำ)
-3. แต่ละหน้าสไลด์มี 'key_points' 3 ข้อ และแต่ละข้อเขียนสรุปประเด็นหลักสั้นๆ ชัดเจน (ความยาว 10-20 คำต่อข้อ)
-4. บังคับเลือก 'icon_name' จากรายการนี้เท่านั้น: [database, server, shield-check, users, bar-chart, activity, cpu, cloud-lightning]
-5. แนะนำสร้างสไลด์จำนวน 5-8 หน้าให้ครอบคลุมประเด็นหลัก
+3. แต่ละหน้าสไลด์ต้องระบุ 'layout_type' เสมอ โดยเลือกจาก: ["hero", "grid-card", "timeline", "stat", "split-media"] ตามความสอดคล้องเชิงความหมายของเนื้อหา
+4. แต่ละหน้าสไลด์มี 'key_points' 3 ข้อ และแต่ละข้อเขียนสรุปประเด็นหลักสั้นๆ ชัดเจน (ความยาว 10-20 คำต่อข้อ)
+5. บังคับเลือก 'icon_name' จากรายการนี้เท่านั้น: [database, server, shield-check, users, bar-chart, activity, cpu, cloud-lightning]
+6. แนะนำสร้างสไลด์จำนวน 5-8 หน้าให้ครอบคลุมประเด็นหลัก
 
-[โครงสร้าง JSON ที่บังคับ (พร้อมตัวอย่างสรุปกระชับ)]:
+[โครงสร้าง JSON ที่บังคับ (พร้อมตัวอย่างสรุปกระชับหลากเลย์เอาต์)]:
 {
   "title": "สรุปผลโครงการ Smart Farm",
   "audience": "ผู้สนใจทั่วไป",
@@ -104,11 +119,24 @@ def _build_action_prompt(action_type: ActionType, language: str, user_goal: Opti
       "slide_number": 1,
       "slide_title": "สถาปัตยกรรมระบบ Smart Farm",
       "icon_name": "cpu",
+      "layout_type": "hero",
       "slide_description": "สรุปโครงสร้างระบบเฝ้าระวังการเกษตรอัจฉริยะผ่านคลาวด์เพื่อช่วยเพิ่มประสิทธิภาพในการทำฟาร์มยุคใหม่",
       "key_points": [
         "ติดตั้งอุปกรณ์เซ็นเซอร์ทั่วแปลงเกษตรเพื่อวัดความชื้นและอุณหภูมิเรียลไทม์",
         "ส่งข้อมูลผ่านเครือข่ายประหยัดพลังงาน LoRaWAN ยืดอายุแบตเตอรี่ได้สูงสุด 5 ปี",
         "ใช้ระบบประมวลผลความเร็วสูงเพื่อวิเคราะห์สถิติขึ้นแดชบอร์ดทันที"
+      ]
+    },
+    {
+      "slide_number": 2,
+      "slide_title": "ประสิทธิภาพด้านสิ่งแวดล้อมและการประหยัด",
+      "icon_name": "bar-chart",
+      "layout_type": "stat",
+      "slide_description": "ตัวบ่งชี้ประสิทธิภาพของโครงการเกษตรอัจฉริยะในการลดต้นทุนและเพิ่มผลผลิตประเมินในรอบ 1 ปี",
+      "key_points": [
+        "ประสิทธิภาพลดการใช้น้ำลงได้มากถึง 30% จากระบบควบคุมอัจฉริยะ",
+        "ประหยัดพลังงานไฟฟ้ารอบปีคิดเป็นมูลค่าลดลงกว่า 25% ด้วย LoRaWAN",
+        "ผลผลิตผลิตเพิ่มขึ้น 15% จากการคาดคะเนโรคและศัตรูพืชล่วงหน้า"
       ]
     }
   ]
@@ -184,14 +212,10 @@ async def generate_action(
         raise HTTPException(status_code=404, detail="ไม่พบแชทเซสชันนี้")
 
     try:
-        # Step 1: ให้โมเดลหลัก (Chinda) สกัดและสรุปเนื้อหาจากเอกสาร
-        # (ดึงชื่อโมเดลภาษาไทยจาก DEFAULT_LLM_MODEL)
-        content_model_name = settings.DEFAULT_LLM_MODEL 
+        content_model_name = settings.DEFAULT_LLM_MODEL
         
-        # สร้างคำสั่งละเอียด เพื่อบังคับสกัดครบทุกเอกสารและลึกซึ้งที่สุด
         search_term = request.user_goal if request.user_goal else "สรุปเนื้อหาสาระสำคัญและข้อมูลเชิงลึกทั้งหมดจากเอกสารนี้"
         
-        # ปรับปรุงให้สกัดเจาะลึกเชิงรายละเอียดทางเทคนิคยาวๆ เป็นพิเศษเมื่อต้องการสร้างสไลด์แบบละเอียด
         detail_emphasis = ""
         if request.action_type == ActionType.SLIDES and request.detail_level == "detailed":
             detail_emphasis = (
@@ -271,20 +295,9 @@ async def generate_action(
             clean_answer = json.dumps(parsed_mindmap, ensure_ascii=False)
 
         elif request.action_type in [ActionType.SLIDES, ActionType.INFOGRAPHIC]:
-            try:
-                from app.services.renderer import render_action_to_image, PLAYWRIGHT_AVAILABLE
-                if PLAYWRIGHT_AVAILABLE:
-                    print(f"📸 [Renderer] เรนเดอร์ {request.action_type.value} ไปยังภาพ Base64...")
-                    base64_img = await render_action_to_image(request.action_type.value, clean_answer)
-                    clean_answer = base64_img
-                    print(f"✅ [Renderer] เรนเดอร์สำเร็จ ความยาวภาพ: {len(base64_img)} ตัวอักษร")
-                else:
-                    print(f"⚠️ [Renderer Warning] Playwright ยังไม่ได้ติดตั้ง จะใช้เนื้อหาแบบ JSON แทน")
-            except Exception as render_err:
-                print(f"⚠️ [Renderer Error] เกิดข้อผิดพลาดในการเรนเดอร์ภาพ: {render_err} ระบบจะใช้งาน JSON แทน")
-
-        import uuid
-        action_id = f"act_{uuid.uuid4().hex[:12]}"
+            # ในระบบใหม่แบบ Pure JSON Handover (Gamma.app Model)
+            # เราจะบายพาสการเรนเดอร์ภาพนิ่ง Playwright บน Backend และส่ง Raw JSON กลับไปให้ Frontend ทำการวาดแบบ Responsive โดยตรง
+            print(f"⚡ [Pure JSON Handover] บายพาสการเรนเดอร์ Playwright และส่ง JSON โครงสร้างตรงไปยัง Frontend")
 
         # ให้ LLM เจนชื่อสไลด์/Action หัวข้อสรุปจากข้อมูลภาษาไทย (ไม่เกิน 10 คำ)
         action_title = None
@@ -313,30 +326,34 @@ async def generate_action(
         except Exception as title_err:
             print(f"⚠️ [Title Generator Warning] เกิดข้อผิดพลาดในการเจนชื่อหัวข้อ: {title_err}")
 
-        response = ActionGenerateResponse(
-            id=action_id,
+        # บันทึกข้อมูล Action ลง PostgreSQL
+        db_action = GeneratedAction(
+            session_id=session_uuid,
+            user_id=current_user.id,
+            action_type=request.action_type.value,
             title=action_title,
-            action_type=request.action_type,
             prompt=final_prompt,
             answer=clean_answer,
             thinking=step2_result.get("thinking") or step1_result.get("thinking"),
             model_name=f"{content_model_name} + {coder_model_name}",
             citations=citations,
         )
+        db.add(db_action)
+        await db.commit()
+        await db.refresh(db_action)
 
-        # บันทึกข้อมูล Action ลง Disk ของ Backend เพื่อป้องกันข้อมูลหายเมื่อกด F5/Refresh
-        try:
-            storage_dir = os.path.join("data", "actions")
-            os.makedirs(storage_dir, exist_ok=True)
-            file_name = f"action_{request.session_id}_{request.action_type.value}_{action_id}.json"
-            file_path = os.path.join(storage_dir, file_name)
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(response.model_dump(), f, ensure_ascii=False, indent=2)
-            print(f"💾 [Actions Storage] Saved generated action to {file_path}")
-        except Exception as save_err:
-            print(f"⚠️ [Actions Storage Warning] Failed to save action: {save_err}")
-
-        return response
+        return ActionGenerateResponse(
+            id=str(db_action.id),
+            title=db_action.title,
+            action_type=db_action.action_type,
+            prompt=db_action.prompt or "",
+            answer=db_action.answer,
+            thinking=db_action.thinking,
+            model_name=db_action.model_name,
+            citations=db_action.citations,
+            created_at=db_action.created_at.timestamp() * 1000,
+            editor_state=db_action.editor_state,
+        )
     except Exception as e:
         print(f"❌ [Action Error] {str(e)}")
         raise HTTPException(
@@ -352,7 +369,7 @@ async def get_session_actions(
     current_user: User = Depends(get_current_user),
 ):
     """
-    ดึงผลลัพธ์ Action ทั้งหมดที่เคยสร้างไว้ใน session นี้จาก Disk กลับคืนมา
+    ดึงผลลัพธ์ Action ทั้งหมดที่เคยสร้างไว้ใน session นี้จาก PostgreSQL
     """
     session_uuid = uuid_mod.UUID(session_id)
     # ตรวจสอบสิทธิ์ความเป็นเจ้าของของเซสชัน
@@ -363,30 +380,88 @@ async def get_session_actions(
         raise HTTPException(status_code=404, detail="ไม่พบแชทเซสชันนี้")
 
     try:
-        storage_dir = os.path.join("data", "actions")
-        if not os.path.exists(storage_dir):
-            return []
+        result = await db.execute(
+            select(GeneratedAction)
+            .where(GeneratedAction.session_id == session_uuid)
+            .order_by(GeneratedAction.created_at.desc())
+        )
+        actions = result.scalars().all()
 
-        results = []
-        # ค้นหาไฟล์ action_{session_id}_*.json ทั้งหมดในโฟลเดอร์
-        for file_name in os.listdir(storage_dir):
-            if file_name.startswith(f"action_{session_id}_") and file_name.endswith(".json"):
-                file_path = os.path.join(storage_dir, file_name)
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        if "created_at" not in data:
-                            data["created_at"] = os.path.getmtime(file_path) * 1000
-                        results.append(ActionGenerateResponse(**data))
-                except Exception as read_err:
-                    print(f"⚠️ [Actions Storage Warning] Failed to read {file_name}: {read_err}")
-
-        # เรียงลำดับจากใหม่สุดไปเก่าสุด (created_at มากไปน้อย)
-        results.sort(key=lambda x: x.created_at or 0, reverse=True)
-        return results
+        return [
+            ActionGenerateResponse(
+                id=str(a.id),
+                title=a.title,
+                action_type=a.action_type,
+                prompt=a.prompt or "",
+                answer=a.answer,
+                thinking=a.thinking,
+                model_name=a.model_name,
+                citations=a.citations,
+                created_at=a.created_at.timestamp() * 1000,
+                editor_state=a.editor_state,
+            )
+            for a in actions
+        ]
     except Exception as e:
         print(f"❌ [Action Retrieval Error] {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"เกิดข้อผิดพลาดในการดึงรายการ Action: {str(e)}"
+        )
+
+
+@router.post("/update/{action_id}", response_model=ActionGenerateResponse)
+async def update_action(
+    action_id: str,
+    request: ActionUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    อัปเดตผลลัพธ์ Action (สไลด์/อินโฟ) ที่บันทึกไว้ใน PostgreSQL (รวมถึง editor_state และ answer ล่าสุด)
+    """
+    try:
+        action_uuid = uuid_mod.UUID(action_id)
+        
+        result = await db.execute(
+            select(GeneratedAction).where(GeneratedAction.id == action_uuid)
+        )
+        db_action = result.scalar_one_or_none()
+        
+        if not db_action:
+            raise HTTPException(status_code=404, detail=f"ไม่พบข้อมูล Action ID: {action_id}")
+            
+        if db_action.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="คุณไม่มีสิทธิ์แก้ไข Action นี้")
+
+        # อัปเดตข้อมูล
+        if request.editor_state is not None:
+            db_action.editor_state = request.editor_state
+        if request.answer is not None:
+            db_action.answer = request.answer
+
+        await db.commit()
+        await db.refresh(db_action)
+
+        print(f"💾 [Actions Storage] Updated action {action_id} in PostgreSQL")
+        
+        return ActionGenerateResponse(
+            id=str(db_action.id),
+            title=db_action.title,
+            action_type=db_action.action_type,
+            prompt=db_action.prompt or "",
+            answer=db_action.answer,
+            thinking=db_action.thinking,
+            model_name=db_action.model_name,
+            citations=db_action.citations,
+            created_at=db_action.created_at.timestamp() * 1000,
+            editor_state=db_action.editor_state,
+        )
+    except HTTPException as http_ex:
+        raise http_ex
+    except Exception as e:
+        print(f"❌ [Action Update Error] {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"เกิดข้อผิดพลาดในการอัปเดต Action: {str(e)}"
         )

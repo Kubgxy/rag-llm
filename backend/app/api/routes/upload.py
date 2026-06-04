@@ -34,11 +34,13 @@ async def upload_document(
     print(f"📦 [API] User: {current_user.username}")
 
     # 1. ตรวจสอบนามสกุลไฟล์
-    if not file.filename.lower().endswith('.pdf'):
-        print(f"❌ [API] ไฟล์ไม่ใช่ PDF: {file.filename}")
+    ALLOWED_EXTENSIONS = {'.pdf', '.txt', '.md', '.docx', '.pptx', '.csv', '.xlsx'}
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        print(f"❌ [API] นามสกุลไฟล์ไม่รองรับ: {file.filename}")
         raise HTTPException(
             status_code=400,
-            detail="รองรับเฉพาะไฟล์ PDF เท่านั้น"
+            detail=f"ไม่รองรับประเภทไฟล์นี้ รองรับเฉพาะ: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
         )
 
     # 2. ตรวจสอบขนาดไฟล์ก่อนบันทึก (ถ้ามี metadata บอกขนาดไฟล์มา)
@@ -98,14 +100,25 @@ async def upload_document(
         print(f"✅ [API] บันทึกไฟล์สำเร็จ ({file_size} bytes)")
 
         # 4. บันทึกข้อมูลลงตาราง documents ใน SQL DB
+        extension_map = {
+            '.pdf': ('application/pdf', 'pdf'),
+            '.txt': ('text/plain', 'txt'),
+            '.md': ('text/markdown', 'md'),
+            '.docx': ('application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'docx'),
+            '.pptx': ('application/vnd.openxmlformats-officedocument.presentationml.presentation', 'pptx'),
+            '.csv': ('text/csv', 'csv'),
+            '.xlsx': ('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx')
+        }
+        mime_type, source_type = extension_map.get(ext, ("application/octet-stream", ext.strip('.')))
+        
         db_doc = Document(
             session_id=session_uuid,
             file_name=file.filename,
             file_path=file_path,
             file_size=file_size,
-            mime_type=file.content_type or "application/pdf",
+            mime_type=file.content_type or mime_type,
             status="processing",
-            source_type="pdf"
+            source_type=source_type
         )
         db.add(db_doc)
         await db.commit()
