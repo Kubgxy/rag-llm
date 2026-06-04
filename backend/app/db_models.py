@@ -62,6 +62,9 @@ class ChatSession(Base):
     user: Mapped["User"] = relationship(back_populates="sessions")
     messages: Mapped[list["ChatMessage"]] = relationship(back_populates="session", cascade="all, delete-orphan")
     documents: Mapped[list["Document"]] = relationship(back_populates="session", cascade="all, delete-orphan")
+    actions: Mapped[list["GeneratedAction"]] = relationship(
+        back_populates="session", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("idx_sessions_user", "user_id", "created_at"),
@@ -71,7 +74,7 @@ class ChatSession(Base):
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
 
-    id: Mapped[uuid.UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column( 
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     session_id: Mapped[uuid.UUID] = mapped_column(
