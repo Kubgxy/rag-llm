@@ -7,13 +7,13 @@ import { useDocumentStore } from '../stores/documentStore.js'
 import { useThemeStore } from '../stores/themeStore.js'
 import { useCategoryStore } from '../stores/categoryStore.js'
 import { Sun, Moon, Globe } from 'lucide-react'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useLanguageStore } from '../stores/languageStore.js'
 import GlobalSearchModal from '../components/chat/GlobalSearchModal.jsx'
 import UserProfileMenu from '../components/auth/UserProfileMenu.jsx'
 
 export default function WorkspaceHome() {
-  const { history, deleteSession, setActiveSession, updateSessionTitle, updateSessionCategory } = useChatHistoryStore()
+  const { history, deleteSession, setActiveSession, updateSessionTitle, updateSessionCategory, fetchHistoryFromBackend } = useChatHistoryStore()
   const { categories, selectedCategoryId, setSelectedCategory, clearCategoryFilter } = useCategoryStore()
   const { theme, toggleTheme } = useThemeStore()
   const { lang, t, toggleLanguage } = useLanguageStore()
@@ -25,6 +25,11 @@ export default function WorkspaceHome() {
   const [draggedSessionId, setDraggedSessionId] = useState(null)
   const [dragOverCategoryId, setDragOverCategoryId] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
+
+  // Fetch session history from backend database on mount
+  useEffect(() => {
+    fetchHistoryFromBackend()
+  }, [fetchHistoryFromBackend])
 
   const tr = (key, vars = {}) => {
     let text = t(key)

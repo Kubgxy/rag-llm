@@ -297,6 +297,23 @@ class ChatMessageResponse(BaseModel):
         from_attributes = True
 
 
+class DocumentResponse(BaseModel):
+    id: uuid.UUID
+    session_id: uuid.UUID
+    file_name: str
+    file_size: Optional[int] = None
+    mime_type: Optional[str] = None
+    status: str
+    summary: Optional[str] = None
+    mindmap: Optional[Any] = None
+    source_type: str
+    source_url: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class ChatSessionResponse(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
@@ -307,6 +324,7 @@ class ChatSessionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     messages: Optional[List[ChatMessageResponse]] = None
+    documents: Optional[List[DocumentResponse]] = None
 
     class Config:
         from_attributes = True

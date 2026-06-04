@@ -496,29 +496,38 @@ Please fix the error and write the corrected code. Keep in mind:
         )
         print(f"   ⏱️ Create index: {time.time() - t1:.2f}s")
 
-        # 1. Vector Retriever - ใช้ effective_top_k ที่กำหนดตาม runtime พร้อมกรองตาม session_id และไฟล์ที่เลือก (ถ้ามี)
-        from llama_index.core.vector_stores import MetadataFilters, MetadataFilter
-        from llama_index.core.vector_stores.types import FilterOperator
+        # 1. Vector Retriever - ใช้ effective_top_k ที่กำหนดตาม runtime พร้อมกรองไฟล์และ session
+        retriever_kwargs = {"similarity_top_k": effective_top_k}
+        from llama_index.core.vector_stores import MetadataFilters, MetadataFilter, FilterCondition, FilterOperator
         
-        # กรองข้อมูลให้ดึงเฉพาะของ session ปัจจุบันเสมอ
-        filters_list = [
-            MetadataFilter(key="session_id", value=str(session_id))
-        ]
+        session_filter = MetadataFilter(key="session_id", value=session_id)
         
         if selected_files:
-            print(f"   🎯 [Metadata Filter] ค้นหาใน session: {session_id} เฉพาะไฟล์: {selected_files}")
+            print(f"   🎯 [Metadata Filter] ค้นหาเฉพาะไฟล์: {selected_files} และ session_id: {session_id}")
             if len(selected_files) == 1:
-                filters_list.append(MetadataFilter(key="file_name", value=selected_files[0]))
+                filters = MetadataFilters(
+                    filters=[
+                        session_filter,
+                        MetadataFilter(key="file_name", value=selected_files[0])
+                    ],
+                    condition=FilterCondition.AND
+                )
             else:
-                filters_list.append(MetadataFilter(key="file_name", value=selected_files, operator=FilterOperator.IN))
+                filters = MetadataFilters(
+                    filters=[
+                        session_filter,
+                        MetadataFilter(key="file_name", value=selected_files, operator=FilterOperator.IN)
+                    ],
+                    condition=FilterCondition.AND
+                )
         else:
-            print(f"   🎯 [Metadata Filter] ค้นหาเฉพาะข้อมูลใน session: {session_id}")
+            print(f"   🎯 [Metadata Filter] ค้นหาเฉพาะ session_id: {session_id}")
+            filters = MetadataFilters(
+                filters=[session_filter]
+            )
             
-        retriever_kwargs = {
-            "similarity_top_k": effective_top_k,
-            "filters": MetadataFilters(filters=filters_list)
-        }
-        
+        retriever_kwargs["filters"] = filters
+
         vector_retriever = index.as_retriever(**retriever_kwargs)
 
         # 2. BM25 Retriever

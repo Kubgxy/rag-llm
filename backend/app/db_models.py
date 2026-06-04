@@ -7,7 +7,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from pgvector.sqlalchemy import Vector
 from app.database import Base
 
 
@@ -63,9 +62,6 @@ class ChatSession(Base):
     user: Mapped["User"] = relationship(back_populates="sessions")
     messages: Mapped[list["ChatMessage"]] = relationship(back_populates="session", cascade="all, delete-orphan")
     documents: Mapped[list["Document"]] = relationship(back_populates="session", cascade="all, delete-orphan")
-    actions: Mapped[list["GeneratedAction"]] = relationship(
-        back_populates="session", cascade="all, delete-orphan"
-    )
 
     __table_args__ = (
         Index("idx_sessions_user", "user_id", "created_at"),
@@ -125,6 +121,8 @@ class Document(Base):
     __table_args__ = (
         Index("idx_documents_session", "session_id"),
     )
+
+
 
 
 

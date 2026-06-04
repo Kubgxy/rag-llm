@@ -36,7 +36,14 @@ async def chat_single(
         db, session_id=session_uuid, user_id=current_user.id
     )
     if session is None:
-        raise HTTPException(status_code=404, detail="ไม่พบแชทเซสชันนี้")
+        # หากไม่พบเซสชันในระบบ (กรณีพึ่งสร้างห้องแชทใหม่ในหน้าบ้าน) ให้สร้างใน DB ทันที
+        session = await session_service.create_session(
+            db,
+            user_id=current_user.id,
+            title="New Chat",
+            model_name=request.model_name,
+            session_id=session_uuid
+        )
 
     # ลงทะเบียน request สำหรับ tracking
     request_id = runtime_manager.register_request()
@@ -52,14 +59,14 @@ async def chat_single(
 
         session_uuid = uuid_mod.UUID(request.session_id)
 
-        # 1. บันทึก user message ลง DB
+        # 1. ดึง conversation memory (ดึงเฉพาะประวัติก่อนหน้านี้ ก่อนจะเซฟข้อความปัจจุบัน)
+        memory_context = await session_service.get_conversation_memory(db, session_id=session_uuid)
+
+        # 2. บันทึก user message ลง DB
         await session_service.save_message(
             db, session_id=session_uuid, role="user",
             content=request.query, model_name=request.model_name,
         )
-
-        # 2. ดึง conversation memory
-        memory_context = await session_service.get_conversation_memory(db, session_id=session_uuid)
 
         # 3. ถามคำถาม (พร้อม memory context)
         result = await llm_service.query_with_context(
@@ -153,12 +160,30 @@ async def suggest_title(
         title_text = ' '.join(title_text.split())[:25].strip()
         print(f"✅ [Title] สร้างชื่อสำเร็จ: {title_text}")
 
+        if request.session_id:
+            await session_service.update_session(
+                db,
+                session_id=session_uuid,
+                user_id=current_user.id,
+                title=title_text
+            )
+
         return {"title": title_text}
 
     except Exception as e:
         print(f"❌ [Title Error] {str(e)}")
         # Return fallback title
         fallback_title = request.query[:30].strip()
+        if request.session_id:
+            try:
+                await session_service.update_session(
+                    db,
+                    session_id=session_uuid,
+                    user_id=current_user.id,
+                    title=fallback_title
+                )
+            except Exception as update_err:
+                print(f"⚠️ [Title Update Fallback Error] {str(update_err)}")
         return {"title": fallback_title}
 
 
@@ -184,7 +209,15 @@ async def chat_compare(
         db, session_id=session_uuid, user_id=current_user.id
     )
     if session is None:
-        raise HTTPException(status_code=404, detail="ไม่พบแชทเซสชันนี้")
+        # หากไม่พบเซสชันในระบบ (กรณีพึ่งสร้างห้องแชทใหม่ในหน้าบ้าน) ให้สร้างใน DB ทันที
+        session = await session_service.create_session(
+            db,
+            user_id=current_user.id,
+            title="New Chat",
+            session_type="arena",
+            model_name=request.model_a,
+            session_id=session_uuid
+        )
 
     # ลงทะเบียน request สำหรับ tracking
     request_id = runtime_manager.register_request()

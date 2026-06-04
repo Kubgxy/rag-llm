@@ -62,9 +62,13 @@ async def upload_document(
 
     session = await db.get(ChatSession, session_uuid)
     if not session:
-        raise HTTPException(
-            status_code=404,
-            detail="ไม่พบ Chat Session นี้ในระบบ"
+        # หากไม่พบเซสชันในระบบ (กรณีอัปโหลดไฟล์ในแชทที่พึ่งสร้างใหม่และยังไม่มีข้อความ) ให้สร้างใน DB ทันที
+        from app.services import session_service
+        session = await session_service.create_session(
+            db,
+            user_id=current_user.id,
+            title="New Chat",
+            session_id=session_uuid
         )
 
     if session.user_id != current_user.id:

@@ -38,7 +38,7 @@ class VectorStoreManager:
         Settings.embed_model = self.embedding_model
         print("✅ Embedding Model พร้อมใช้งาน")
 
-    def _get_vector_store(self, table_name: str = "document_embeddings") -> PGVectorStore:
+    def _get_vector_store(self, table_name: str = "document_embeddings_store") -> PGVectorStore:
         """สร้าง PGVectorStore instance"""
         return PGVectorStore.from_params(
             database=settings.DATABASE_URL_SYNC.split("/")[-1],
@@ -61,9 +61,10 @@ class VectorStoreManager:
         Returns:
             StorageContext ที่พร้อมใช้งาน
         """
-        # รวบรวมข้อมูล embeddings ไว้ในตารางเดียว
-        table_name = "document_embeddings"
-        print(f"📦 [VectorStore] สร้าง storage สำหรับ session: {session_id} (รวบใน table: {table_name})")
+        # ใช้ table name เดียวแชร์กัน โดยแยกข้อมูลด้วย metadata.session_id
+        table_name = "document_embeddings_store"
+        print(f"📦 [VectorStore] สร้าง storage สำหรับ session: {session_id}")
+        print(f"   Table name: {table_name}")
 
         vector_store = self._get_vector_store(table_name=table_name)
 

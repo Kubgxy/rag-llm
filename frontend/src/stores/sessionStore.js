@@ -18,18 +18,9 @@ export const useSessionStore = create(
       // สร้าง session ใหม่ผ่าน API (ได้ UUID กลับ)
       createSession: async (title = null, sessionType = 'notebook') => {
         set({ isCreatingSession: true })
-        try {
-          const session = await createSessionApi(title, sessionType)
-          const newSessionId = session.id
-          set({ sessionId: newSessionId, chatTitle: title || 'New Chat', isCreatingSession: false })
-          return newSessionId
-        } catch (error) {
-          console.error('❌ Failed to create session via API:', error)
-          // Fallback: ถ้า API ไม่ได้ ให้ใช้ UUID ฝั่ง client (กรณี backend ยังไม่พร้อม)
-          const fallbackId = crypto.randomUUID()
-          set({ sessionId: fallbackId, chatTitle: title || 'New Chat', isCreatingSession: false })
-          return fallbackId
-        }
+        const newSessionId = crypto.randomUUID()
+        set({ sessionId: newSessionId, chatTitle: title || 'New Chat', isCreatingSession: false })
+        return newSessionId
       },
 
       // ดึง session_id ปัจจุบัน (ถ้าไม่มีจะต้อง createSession ก่อน)
@@ -43,17 +34,9 @@ export const useSessionStore = create(
 
       // สร้าง arena session ให้แยกออก
       createArenaSession: async () => {
-        try {
-          const session = await createSessionApi(null, 'arena')
-          const newId = session.id
-          set({ arenaSessionId: newId })
-          return newId
-        } catch (error) {
-          console.error('❌ Failed to create arena session:', error)
-          const fallbackId = crypto.randomUUID()
-          set({ arenaSessionId: fallbackId })
-          return fallbackId
-        }
+        const newId = crypto.randomUUID()
+        set({ arenaSessionId: newId })
+        return newId
       },
 
       getArenaSessionId: () => {
