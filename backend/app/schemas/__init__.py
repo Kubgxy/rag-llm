@@ -34,6 +34,7 @@ from .models import (
     ChatSessionUpdateRequest,
     ChatSessionResponse,
     ChatMessageResponse,
+    DocumentResponse,
 )
 
 __all__ = [
@@ -72,4 +73,5 @@ __all__ = [
     "ChatSessionUpdateRequest",
     "ChatSessionResponse",
     "ChatMessageResponse",
+    "DocumentResponse",
 ]

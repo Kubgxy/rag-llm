@@ -25,6 +25,15 @@ export const useAuthStore = create(
       setLoading: (isLoading) => set({ isLoading }),
 
       logout: () => {
+        // ล้างค่าข้อมูลของแผงแชท เอกสาร และประวัติของ account ปัจจุบันใน LocalStorage
+        try {
+          localStorage.removeItem('rag-chat-history')
+          localStorage.removeItem('rag-session-storage')
+          localStorage.removeItem('rag-document-storage')
+        } catch (e) {
+          console.error('❌ Failed to clear localStorage on logout:', e)
+        }
+
         set({
           user: null,
           accessToken: null,
@@ -33,6 +42,9 @@ export const useAuthStore = create(
           error: null,
           isLoading: false,
         })
+
+        // บังคับเปลี่ยนหน้าและโหลดหน้าใหม่เพื่อทำความสะอาดหน่วยความจำ (RAM State)
+        window.location.href = '/auth'
       },
 
       // Hydrate auth state on app start

@@ -14,9 +14,11 @@ async def create_session(
     title: Optional[str] = None,
     session_type: str = "notebook",
     model_name: Optional[str] = None,
+    session_id: Optional[uuid.UUID] = None,
 ) -> ChatSession:
     """สร้าง chat session ใหม่"""
     session = ChatSession(
+        id=session_id or uuid.uuid4(),
         user_id=user_id,
         title=title,
         session_type=session_type,
@@ -39,11 +41,14 @@ async def get_user_sessions(
     user_id: uuid.UUID,
     include_archived: bool = False,
 ) -> List[ChatSession]:
-    """ดึงรายการ sessions ของ user เรียงตามล่าสุด (eager load messages)"""
+    """ดึงรายการ sessions ของ user เรียงตามล่าสุด (eager load messages และ documents)"""
     query = select(ChatSession).where(ChatSession.user_id == user_id)
     if not include_archived:
         query = query.where(ChatSession.is_archived == False)
-    query = query.options(selectinload(ChatSession.messages))
+    query = query.options(
+        selectinload(ChatSession.messages),
+        selectinload(ChatSession.documents)
+    )
     query = query.order_by(ChatSession.updated_at.desc())
     result = await db.execute(query)
     return list(result.scalars().all())
@@ -61,7 +66,10 @@ async def get_session(
         ChatSession.user_id == user_id,
     )
     if with_messages:
-        query = query.options(selectinload(ChatSession.messages))
+        query = query.options(
+            selectinload(ChatSession.messages),
+            selectinload(ChatSession.documents)
+        )
     result = await db.execute(query)
     return result.scalar_one_or_none()
 
@@ -74,7 +82,7 @@ async def update_session(
     is_archived: Optional[bool] = None,
 ) -> Optional[ChatSession]:
     """อัปเดตชื่อหรือ archive status ของ session"""
-    session = await get_session(db, session_id, user_id, with_messages=True)
+    session = await get_session(db, session_id, user_id)
     if session is None:
         return None
 
@@ -84,9 +92,10 @@ async def update_session(
         session.is_archived = is_archived
 
     await db.commit()
-    await db.refresh(session)
-    session.messages = list(session.messages)  # มั่นใจว่าโหลดแล้ว
-    return session
+    
+    # ดึงขึ้นมาแบบ eager load อีกครั้งเพื่อความปลอดภัยในการ serialize และเลี่ยง lazy-load error
+    new_session = await get_session(db, session_id, user_id, with_messages=True)
+    return new_session
 
 
 async def delete_session(

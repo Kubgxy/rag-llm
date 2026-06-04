@@ -72,6 +72,81 @@ export const useChatHistoryStore = create(
           delete newHistory[sessionId]
           return { history: newHistory }
         }),
+
+      fetchHistoryFromBackend: async () => {
+        try {
+          const { listSessionsApi } = await import('../services/api.js')
+          const sessions = await listSessionsApi()
+          
+          set((state) => {
+            const newHistory = { ...state.history }
+            
+            for (const session of sessions) {
+              const pdfDocs = []
+              const webSources = []
+              let summary = null
+              let mindmapNodes = []
+              let mindmapEdges = []
+
+              if (session.documents && Array.isArray(session.documents)) {
+                for (const doc of session.documents) {
+                  if (doc.source_type === 'web') {
+                    webSources.push({
+                      title: doc.file_name,
+                      url: doc.source_url,
+                      snippet: doc.summary || '',
+                      source: doc.file_name,
+                    })
+                  } else {
+                    pdfDocs.push({
+                      name: doc.file_name,
+                      size: doc.file_size || 0,
+                      uploadedAt: doc.created_at,
+                    })
+                  }
+                  if (!summary && doc.summary) {
+                    summary = doc.summary
+                  }
+                  if (mindmapNodes.length === 0 && doc.mindmap && Array.isArray(doc.mindmap.nodes)) {
+                    mindmapNodes = doc.mindmap.nodes
+                    mindmapEdges = doc.mindmap.edges || []
+                  }
+                }
+              }
+
+              // Preserve client-only properties like categoryId
+              const existingSession = state.history[session.id] || {}
+
+              newHistory[session.id] = {
+                title: session.title || existingSession.title || 'New Chat',
+                messages: (session.messages || []).map(msg => ({
+                  id: msg.id,
+                  role: msg.role,
+                  content: msg.content,
+                  thinking: msg.thinking || null,
+                  timestamp: new Date(msg.created_at).getTime(),
+                  metadata: {
+                    model: msg.model_name,
+                    thinkingExpanded: false,
+                    citations: msg.citations || [],
+                  }
+                })),
+                documents: pdfDocs,
+                importedWebSources: webSources,
+                summary: summary || existingSession.summary || null,
+                mindmapNodes: mindmapNodes.length > 0 ? mindmapNodes : (existingSession.mindmapNodes || []),
+                mindmapEdges: mindmapEdges.length > 0 ? mindmapEdges : (existingSession.mindmapEdges || []),
+                categoryId: existingSession.categoryId || null,
+                updatedAt: new Date(session.updated_at).getTime(),
+              }
+            }
+
+            return { history: newHistory }
+          })
+        } catch (error) {
+          console.error('❌ Failed to fetch session history from backend:', error)
+        }
+      },
     }),
     {
       name: 'rag-chat-history',

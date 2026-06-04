@@ -23,7 +23,7 @@ export default function Workspace() {
   const { messages, isLoading, sendMessage } = useChat()
   const { toggleThinkingExpanded } = useChatStore()
   const { chatTitle, setChatTitle } = useSessionStore()
-  const { updateSessionTitle } = useChatHistoryStore()
+  const { updateSessionTitle, fetchHistoryFromBackend } = useChatHistoryStore()
   const { documents, previewPdfFile, previewPdfPage, clearPreviewPdf } = useDocumentStore()
   const chatEndRef = useRef(null)
 
@@ -81,13 +81,32 @@ export default function Workspace() {
           selectedWebSourceUrls: [],
         })
       } else {
-        // Create new session or empty state
-        useChatStore.getState().clearMessages()
-        useSessionStore.setState({ chatTitle: 'New Chat' })
-        useDocumentStore.getState().clearDocuments()
+        // ถ้าไม่พบในประวัติเครื่อง ให้ลองดึงประวัติล่าสุดจากเซิร์ฟเวอร์ก่อน
+        fetchHistoryFromBackend().then(() => {
+          const updatedSessionData = useChatHistoryStore.getState().history[sessionId]
+          if (updatedSessionData) {
+            useChatStore.setState({ messages: updatedSessionData.messages || [] })
+            useSessionStore.setState({ chatTitle: updatedSessionData.title || 'New Chat' })
+            useDocumentStore.setState({
+              documents: updatedSessionData.documents || [],
+              importedWebSources: updatedSessionData.importedWebSources || [],
+              summary: updatedSessionData.summary || null,
+              mindmapNodes: updatedSessionData.mindmapNodes || [],
+              mindmapEdges: updatedSessionData.mindmapEdges || [],
+              webSearchQuery: '',
+              webSearchResults: [],
+              selectedWebSourceUrls: [],
+            })
+          } else {
+            // Create new session or empty state
+            useChatStore.getState().clearMessages()
+            useSessionStore.setState({ chatTitle: 'New Chat' })
+            useDocumentStore.getState().clearDocuments()
+          }
+        })
       }
     }
-  }, [sessionId])
+  }, [sessionId, fetchHistoryFromBackend])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })

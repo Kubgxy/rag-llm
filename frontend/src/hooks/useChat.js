@@ -87,25 +87,28 @@ export function useChat() {
           addAssistantMessage(messageData)
         }
 
-        // If first message, suggest title
+        // ปิดการโหลดทันทีหลังจากได้รับคำตอบหลักของบอทเพื่อไม่ให้ Skeleton โหลดค้าง
+        setLoading(false)
+
+        // If first message, suggest title (ทำงานเป็น Asynchronous ใน Background)
         if (isFirstMessage) {
-          try {
-            const titleResponse = await suggestTitle(query, selectedModel, sessionId)
-            if (titleResponse.title) {
-              useSessionStore.getState().setChatTitle(titleResponse.title)
-              // Sync the new title to history
-              syncToHistory(sessionId, titleResponse.title)
-            }
-          } catch (err) {
-            console.warn('Failed to suggest title:', err)
-            // Don't fail the chat if title suggestion fails
-          }
+          suggestTitle(query, selectedModel, sessionId)
+            .then((titleResponse) => {
+              if (titleResponse?.title) {
+                useSessionStore.getState().setChatTitle(titleResponse.title)
+                // Sync the new title to history
+                syncToHistory(sessionId, titleResponse.title)
+              }
+            })
+            .catch((err) => {
+              console.warn('Failed to suggest title in background:', err)
+            })
         }
       } catch (err) {
         addToast(err.message || t('chatConnectionFailed'), 'error')
         addAssistantMessage(t('chatAssistantConnectionError'))
-      } finally {
         setLoading(false)
+      } finally {
         if (sessionId) syncToHistory(sessionId);
       }
     },
