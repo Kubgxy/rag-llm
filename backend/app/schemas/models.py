@@ -275,6 +275,7 @@ class ChatSessionCreateRequest(BaseModel):
     title: Optional[str] = None
     session_type: str = Field(default="notebook", description="notebook / arena")
     model_name: Optional[str] = None
+    system_session_id: Optional[str] = None
 
 
 class ChatSessionUpdateRequest(BaseModel):
@@ -321,6 +322,7 @@ class ChatSessionResponse(BaseModel):
     session_type: str = "notebook"
     model_name: Optional[str] = None
     is_archived: bool = False
+    system_session_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     messages: Optional[List[ChatMessageResponse]] = None
@@ -328,3 +330,37 @@ class ChatSessionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ===== System Session Schemas =====
+
+class SystemSessionResponse(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    icon: Optional[str] = None
+    data_source_type: str
+    sync_interval_minutes: int
+    sync_status: str
+    last_synced_at: Optional[datetime] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SyncHistoryResponse(BaseModel):
+    id: uuid.UUID
+    system_session_id: str
+    sync_type: str
+    status: str
+    records_synced: int
+    error_message: Optional[str] = None
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+

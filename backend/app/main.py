@@ -16,12 +16,16 @@ from app.api import api_router
 from app.services import vector_store_service
 from app.database import init_db, close_db
 
+from app.services.sync_engine import sync_engine
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import asyncio
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Lifespan event handler
-    - Startup: โหลด embedding model, สร้าง database tables
-    - Shutdown: ปิดการเชื่อมต่อ
+    - Startup: โหลด embedding model, สร้าง database tables, ตั้งค่า Sync Scheduler
+    - Shutdown: ปิดการเชื่อมต่อ และหยุดตัวตั้งเวลา
     """
     # Startup
     print("🚀 กำลัง startup backend...")
@@ -32,21 +36,53 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠️ เกิดข้อผิดพลาดในการสร้าง Database: {str(e)}")
 
-
     print(f"📦 โหลด Embedding Model: {settings.EMBEDDING_MODEL}")
 
     # Embedding จะถูกโหลดตอน VectorStoreService init แล้ว
-    # แค่ทดสอบว่าใช้งานได้
     try:
         vector_store_service.embedding_model.get_text_embedding("ทดสอบ")
         print("✅ Embedding Model พร้อมใช้งาน")
     except Exception as e:
         print(f"⚠️ เกิดข้อผิดพลาดในการโหลด Embedding: {str(e)}")
 
+    # 1. เริ่มต้น System Session 'hrm' ในฐานข้อมูล
+    try:
+        await sync_engine.init_system_session()
+    except Exception as e:
+        print(f"⚠️ เกิดข้อผิดพลาดในการเริ่มต้น System Session: {e}")
+
+    # 1.5 Seed Org Policies สำหรับระบบความมั่นคงปลอดภัย (Guardrails)
+    try:
+        from app.services.guardrails_service import guardrails_service
+        from app.database import async_session
+        async with async_session() as db:
+            await guardrails_service.seed_org_policies(db)
+    except Exception as e:
+        print(f"⚠️ เกิดข้อผิดพลาดในการ Seed Org Policies: {e}")
+
+    # 2. ตั้งค่า APScheduler เพื่อรัน Incremental Sync ทุกๆ 15 นาที
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(sync_engine.run_incremental_sync, "interval", minutes=15)
+    scheduler.start()
+    print("⏰ [Scheduler] เริ่มต้นการทำ Incremental Sync ทุกๆ 15 นาทีเรียบร้อย")
+
+    # 3. รัน Webhook registration และรันซิงค์รอบแรกใน background task เพื่อไม่ให้ขัดขวางการเปิดเซิร์ฟเวอร์
+    async def initial_tasks():
+        await asyncio.sleep(5)  # รอให้ FastAPI server รันเสร็จพร้อมตอบสนองก่อน
+        print("⚡ [Startup Tasks] กำลังลงทะเบียน Webhook และรันซิงค์รอบแรก...")
+        await sync_engine.register_webhook_on_hrm()
+        try:
+            await sync_engine.run_incremental_sync()
+        except Exception as e:
+            print(f"⚠️ เกิดข้อผิดพลาดในการซิงค์ข้อมูลรอบแรก: {e}")
+
+    asyncio.create_task(initial_tasks())
+
     yield
 
     # Shutdown
     print("🛑 กำลัง shutdown backend...")
+    scheduler.shutdown()
     vector_store_service.close()
     await close_db()
     print("✅ Shutdown เรียบร้อย")

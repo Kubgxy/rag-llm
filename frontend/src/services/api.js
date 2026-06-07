@@ -173,12 +173,16 @@ export const getMeApi = async () => {
  * Create a new chat session
  * POST /sessions
  */
-export const createSessionApi = async (title = null, sessionType = 'notebook', modelName = null) => {
-  const { data } = await api.post('/sessions', {
+export const createSessionApi = async (title = null, sessionType = 'notebook', modelName = null, systemSessionId = null) => {
+  const payload = {
     title,
     session_type: sessionType,
     model_name: modelName,
-  })
+  }
+  if (systemSessionId) {
+    payload.system_session_id = systemSessionId
+  }
+  const { data } = await api.post('/sessions', payload)
   return data
 }
 
@@ -479,6 +483,40 @@ export const updateKnowledgeAction = async (actionId, editorState, answer) => {
   const { data } = await api.post(`/actions/update/${actionId}`, {
     editor_state: editorState,
     answer,
+  })
+  return data
+}
+
+
+// ═══════════════════════════════════════════════
+// SYSTEM SESSIONS & SYNC API
+// ═══════════════════════════════════════════════
+
+/**
+ * List all active system sessions (shared sessions)
+ * GET /system-sessions
+ */
+export const listSystemSessionsApi = async () => {
+  const { data } = await api.get('/system-sessions')
+  return data
+}
+
+/**
+ * Get details of a specific system session
+ * GET /system-sessions/{id}
+ */
+export const getSystemSessionDetailApi = async (sessionId) => {
+  const { data } = await api.get(`/system-sessions/${sessionId}`)
+  return data
+}
+
+/**
+ * Get sync history for a system session
+ * GET /system-sessions/{id}/history
+ */
+export const getSystemSessionHistoryApi = async (sessionId, limit = 20) => {
+  const { data } = await api.get(`/system-sessions/${sessionId}/history`, {
+    params: { limit }
   })
   return data
 }

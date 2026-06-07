@@ -90,8 +90,10 @@ export function useChat() {
         // ปิดการโหลดทันทีหลังจากได้รับคำตอบหลักของบอทเพื่อไม่ให้ Skeleton โหลดค้าง
         setLoading(false)
 
-        // If first message, suggest title (ทำงานเป็น Asynchronous ใน Background)
-        if (isFirstMessage) {
+        // If first message, suggest title (ทำงานเป็น Asynchronous ใน Background) - ยกเว้น System Session
+        const sessionHistory = useChatHistoryStore.getState().history[sessionId]
+        const isSystemSession = sessionHistory?.systemSessionId
+        if (isFirstMessage && !isSystemSession) {
           suggestTitle(query, selectedModel, sessionId)
             .then((titleResponse) => {
               if (titleResponse?.title) {

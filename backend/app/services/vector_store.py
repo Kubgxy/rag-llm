@@ -133,7 +133,7 @@ class VectorStoreManager:
         from llama_index.core.schema import TextNode
         from llama_index.retrievers.bm25 import BM25Retriever
 
-        table_name = "data_document_embeddings"
+        table_name = "data_document_embeddings_store"
         print(f"🔄 [BM25 Rebuild] กำลังดึงข้อมูลของ session {session_id} จากตาราง {table_name} เพื่อสร้าง BM25...")
 
         try:
@@ -229,7 +229,7 @@ class VectorStoreManager:
     def delete_session_embeddings(self, session_id: str):
         """ลบข้อมูล embeddings ทั้งหมดของ session นั้นๆ ออกจากตารางหลักและลบไฟล์ BM25"""
         from sqlalchemy import create_engine, text
-        table_name = "data_document_embeddings"
+        table_name = "data_document_embeddings_store"
         print(f"🗑️ [VectorStore] กำลังลบ embeddings ของ session: {session_id} จากตาราง {table_name}")
         try:
             engine = create_engine(settings.DATABASE_URL_SYNC)

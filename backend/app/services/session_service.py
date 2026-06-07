@@ -15,6 +15,7 @@ async def create_session(
     session_type: str = "notebook",
     model_name: Optional[str] = None,
     session_id: Optional[uuid.UUID] = None,
+    system_session_id: Optional[str] = None,
 ) -> ChatSession:
     """สร้าง chat session ใหม่"""
     session = ChatSession(
@@ -23,6 +24,7 @@ async def create_session(
         title=title,
         session_type=session_type,
         model_name=model_name,
+        system_session_id=system_session_id,
     )
     session.messages = []  # ป้องกัน lazy load error ก่อน commit
     db.add(session)

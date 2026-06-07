@@ -1,4 +1,5 @@
 import uuid
+from typing import Optional
 from datetime import datetime, timezone
 from sqlalchemy import (
     String, Text, Boolean, Integer, BigInteger, Float,
@@ -29,6 +30,8 @@ class User(Base):
         String(20), nullable=False, default="user",
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    employee_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    hrm_role: Mapped[str] = mapped_column(String(20), nullable=False, default="employee")
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
@@ -39,6 +42,7 @@ class User(Base):
 
     __table_args__ = (
         CheckConstraint("role IN ('admin', 'user', 'viewer')", name="ck_users_role"),
+        CheckConstraint("hrm_role IN ('employee', 'hr_admin', 'admin')", name="ck_users_hrm_role"),
     )
 
 
@@ -55,11 +59,15 @@ class ChatSession(Base):
     session_type: Mapped[str] = mapped_column(String(20), default="notebook")
     model_name: Mapped[str | None] = mapped_column(String(100))
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    system_session_id: Mapped[str | None] = mapped_column(
+        String(100), ForeignKey("system_sessions.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
     # Relationships
     user: Mapped["User"] = relationship(back_populates="sessions")
+    system_session: Mapped[Optional["SystemSession"]] = relationship()
     messages: Mapped[list["ChatMessage"]] = relationship(back_populates="session", cascade="all, delete-orphan")
     documents: Mapped[list["Document"]] = relationship(back_populates="session", cascade="all, delete-orphan")
     actions: Mapped[list["GeneratedAction"]] = relationship(
@@ -190,3 +198,59 @@ class GeneratedAction(Base):
         Index("idx_actions_session", "session_id"),
         Index("idx_actions_user", "user_id"),
     )
+
+
+class SystemSession(Base):
+    """Shared read-only system-level session"""
+    __tablename__ = "system_sessions"
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)  # e.g., 'hrm'
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    icon: Mapped[str | None] = mapped_column(String(100))
+    data_source_type: Mapped[str] = mapped_column(String(50), default="api")  # e.g., 'api'
+    data_source_config: Mapped[dict | None] = mapped_column(JSONB)  # base_url, API key, endpoints etc.
+    sync_interval_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    sync_status: Mapped[str] = mapped_column(String(20), default="idle")  # 'idle', 'syncing', 'error'
+    last_synced_at: Mapped[datetime | None] = mapped_column(nullable=True, default=None)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+    # Relationships
+    sync_histories: Mapped[list["SyncHistory"]] = relationship(back_populates="system_session", cascade="all, delete-orphan")
+
+
+class SyncHistory(Base):
+    """Logs for full and incremental sync runs"""
+    __tablename__ = "sync_history"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    system_session_id: Mapped[str] = mapped_column(String(100), ForeignKey("system_sessions.id", ondelete="CASCADE"), nullable=False)
+    sync_type: Mapped[str] = mapped_column(String(20))  # 'full', 'incremental', 'webhook'
+    status: Mapped[str] = mapped_column(String(20))  # 'success', 'error', 'running'
+    records_synced: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(default=utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(nullable=True, default=None)
+
+    # Relationships
+    system_session: Mapped["SystemSession"] = relationship(back_populates="sync_histories")
+
+
+class OrgPolicy(Base):
+    """Organization policies for Guardrails AI and semantic filtering"""
+    __tablename__ = "org_policies"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    policy_type: Mapped[str] = mapped_column(String(50), nullable=False)  # 'data_access', 'topic_restriction', 'pii_filter'
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    rules: Mapped[dict | None] = mapped_column(JSONB)  # specific criteria, blocked topics list, etc.
+    applies_to_roles: Mapped[dict | None] = mapped_column(JSONB)  # roles e.g. ["employee"] stored as JSON
+    applies_to_sessions: Mapped[dict | None] = mapped_column(JSONB)  # sessions e.g. ["hrm"] stored as JSON
+    severity: Mapped[str] = mapped_column(String(20), default="block")  # 'block', 'warn', 'redact'
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+

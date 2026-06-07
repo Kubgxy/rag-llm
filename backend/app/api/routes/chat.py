@@ -9,6 +9,7 @@ from app.services import session_service
 from app.database import get_db
 from app.db_models import User
 from app.services.auth_service import get_current_user
+from app.services.guardrails_service import guardrails_service
 
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -68,13 +69,51 @@ async def chat_single(
             content=request.query, model_name=request.model_name,
         )
 
-        # 3. ถามคำถาม (พร้อม memory context)
+        # 2.5 Security check (Input Guardrails + RBAC)
+        system_session_id = session.system_session_id if session else None
+        
+        guard_res = await guardrails_service.check_input_guardrails(
+            db=db,
+            user=current_user,
+            system_session_id=system_session_id,
+            query=request.query
+        )
+        
+        if not guard_res["allowed"]:
+            blocked_reason = guard_res["reason"]
+            
+            # บันทึก assistant message แจ้งเตือนปฏิเสธลง DB
+            await session_service.save_message(
+                db, session_id=session_uuid, role="assistant",
+                content=blocked_reason,
+                thinking="[Blocked by Guardrails]",
+                model_name=request.model_name,
+                citations=[]
+            )
+            
+            return ChatResponse(
+                query=request.query,
+                thinking="[Blocked by Guardrails]",
+                answer=blocked_reason,
+                model_name=request.model_name,
+                citations=[]
+            )
+
+        # 3. ถามคำถาม (พร้อม memory context และ filter_employee_email)
+        filter_employee_email = guard_res["filter_employee_email"]
+        
         result = await llm_service.query_with_context(
             query=request.query,
             session_id=request.session_id,
             model_name=request.model_name,
             memory_context=memory_context,
+            filter_employee_email=filter_employee_email,
         )
+
+        # 3.5 Output Guardrails (PII Masking)
+        raw_answer = result.get("answer", "")
+        redacted_answer = await guardrails_service.redact_pii(db, raw_answer)
+        result["answer"] = redacted_answer
 
         # 4. บันทึก assistant response ลง DB
         await session_service.save_message(
@@ -239,6 +278,38 @@ async def chat_compare(
         # ดึง conversation memory
         memory_context = await session_service.get_conversation_memory(db, session_id=session_uuid)
 
+        # 2.5 Security check (Input Guardrails + RBAC)
+        system_session_id = session.system_session_id if session else None
+        
+        guard_res = await guardrails_service.check_input_guardrails(
+            db=db,
+            user=current_user,
+            system_session_id=system_session_id,
+            query=request.query
+        )
+        
+        if not guard_res["allowed"]:
+            blocked_reason = guard_res["reason"]
+            return CompareResponse(
+                query=request.query,
+                response_a=ChatResponse(
+                    query=request.query,
+                    thinking="[Blocked by Guardrails]",
+                    answer=blocked_reason,
+                    model_name=request.model_a,
+                    citations=[]
+                ),
+                response_b=ChatResponse(
+                    query=request.query,
+                    thinking="[Blocked by Guardrails]",
+                    answer=blocked_reason,
+                    model_name=request.model_b,
+                    citations=[]
+                )
+            )
+
+        filter_employee_email = guard_res["filter_employee_email"]
+
         # Query ทั้ง 2 โมเดลพร้อมกัน
         result_a, result_b = await asyncio.gather(
             llm_service.query_with_context(
@@ -246,14 +317,22 @@ async def chat_compare(
                 session_id=request.session_id,
                 model_name=request.model_a,
                 memory_context=memory_context,
+                filter_employee_email=filter_employee_email,
             ),
             llm_service.query_with_context(
                 query=request.query,
                 session_id=request.session_id,
                 model_name=request.model_b,
                 memory_context=memory_context,
+                filter_employee_email=filter_employee_email,
             )
         )
+
+        # 3.5 Output Guardrails (PII Masking)
+        redacted_a = await guardrails_service.redact_pii(db, result_a.get("answer", ""))
+        redacted_b = await guardrails_service.redact_pii(db, result_b.get("answer", ""))
+        result_a["answer"] = redacted_a
+        result_b["answer"] = redacted_b
 
         print(f"📊 [Result A] answer length: {len(result_a.get('answer', ''))}, content: '{result_a.get('answer', '')[:50]}'...")
         print(f"📊 [Result B] answer length: {len(result_b.get('answer', ''))}, content: '{result_b.get('answer', '')[:50]}'...")

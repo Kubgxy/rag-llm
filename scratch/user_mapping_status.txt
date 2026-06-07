@@ -1,0 +1,4 @@
+=== STARTING USER MAPPING UPDATE ===
+Connecting to SQLite: c:\my-project\rag-llm\hrm_mock.db
+Found employee in SQLite: Code=EMP-00151, UUID=4c14ad25-4d91-4a70-b94e-a87f691eda30
+❌ User 'guyhnr123@gmail.com' not found in PostgreSQL backend DB!

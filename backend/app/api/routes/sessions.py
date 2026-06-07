@@ -30,6 +30,7 @@ async def create_session(
         title=request.title,
         session_type=request.session_type,
         model_name=request.model_name,
+        system_session_id=request.system_session_id,
     )
     return session
 

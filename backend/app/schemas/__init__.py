@@ -36,6 +36,9 @@ from .models import (
     ChatSessionResponse,
     ChatMessageResponse,
     DocumentResponse,
+    # System Sessions
+    SystemSessionResponse,
+    SyncHistoryResponse,
 )
 
 __all__ = [
@@ -76,4 +79,7 @@ __all__ = [
     "ChatSessionResponse",
     "ChatMessageResponse",
     "DocumentResponse",
+    # System Sessions
+    "SystemSessionResponse",
+    "SyncHistoryResponse",
 ]

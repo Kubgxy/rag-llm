@@ -11,6 +11,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useLanguageStore } from '../stores/languageStore.js'
 import GlobalSearchModal from '../components/chat/GlobalSearchModal.jsx'
 import UserProfileMenu from '../components/auth/UserProfileMenu.jsx'
+import SystemSessionHub from '../components/system-session/SystemSessionHub.jsx'
 
 export default function WorkspaceHome() {
   const { history, deleteSession, setActiveSession, updateSessionTitle, updateSessionCategory, fetchHistoryFromBackend } = useChatHistoryStore()
@@ -345,6 +346,8 @@ export default function WorkspaceHome() {
 
         {/* History Grid */}
         <div className="flex-1 min-h-0 overflow-y-auto">
+          <SystemSessionHub />
+
           <h2 className="text-lg font-semibold text-surface-900 dark:text-white mb-6 flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-primary-100 dark:bg-primary-900/30">
               <Calendar className="w-4 h-4 text-primary-600 dark:text-primary-400" />

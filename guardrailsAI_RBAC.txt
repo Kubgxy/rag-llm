@@ -1,0 +1,33 @@
+จากที่ผมลองศึกษาระบบ Guardrails AI เพิ่มเติม ตอนนี้ผมเข้าใจภาพรวมประมาณนี้ครับ
+
+Guardrails AI จริง ๆ ไม่ใช่ระบบ Security สำเร็จรูปที่สามารถกันข้อมูลรั่วได้ 100% แต่จะเป็น framework หรือ middleware ที่ใช้สำหรับตรวจสอบและ enforce policy ก่อนและหลังเข้า LLM เพื่อช่วยลดความเสี่ยงในการรั่วไหลของข้อมูล
+
+แนวคิดที่ถูกต้องของ production system จะไม่ใช่การพึ่ง AI ตัวเดียว แต่จะเป็น Security Pipeline หลาย layer เช่น
+
+* Input Guardrails → ตรวจ query ก่อนเข้า AI
+* RBAC / Permission → ตรวจสิทธิ์ผู้ใช้
+* Policy Engine → อ้างอิง policy ขององค์กร
+* Output Guardrails → ตรวจ response ก่อนส่งกลับ
+* Audit Logging → เก็บ log และ trace ย้อนหลัง
+
+ตัวอย่างเช่น ถ้าพนักงานทั่วไปถามข้อมูลเงินเดือน ระบบจะ detect ได้ว่าเป็น HR sensitive data และ block ได้ทันที แม้ AI จะสามารถตอบได้ก็ตาม
+
+หรือถ้า AI ตอบข้อมูลส่วนบุคคลออกมา ระบบ Output Guardrails ก็ยังสามารถ mask / redact ก่อนส่งกลับ user ได้อีกชั้น
+
+ส่วนตัว Guardrails AI ที่ผมลองศึกษา เช่น library ของ guardrails-ai จะเป็นลักษณะ validator framework ที่สามารถเชื่อมกับ policy ขององค์กรได้ เช่น
+
+* Detect PII
+* Prompt Injection Detection
+* Jailbreak Detection
+* Sensitive Topic Detection
+
+แต่ตัว framework จะไม่ได้ “รู้ policy ขององค์กรเอง” เราจะต้องมี policy source ให้มัน เช่น Database policy ของกระทรวง
+
+ซึ่งผมมองว่าแนวคิดที่เราคุยกันไว้เรื่องให้ทางกระทรวง define policy ไว้ใน database ถือว่าถูกทางมาก เพราะจะทำให้:
+
+* องค์กรเป็น owner ของ policy
+* dev ไม่ต้อง hardcode business rule
+* แก้ policy ได้โดยไม่ต้อง deploy ใหม่
+* audit และ governance ง่ายกว่า
+
+แต่ใน implementation จริง ผมคิดว่าไม่ควรใช้แค่ keyword matching อย่างเดียว เพราะ user สามารถถามอ้อมได้ เช่น “ค่าตอบแทน” แทน “เงินเดือน” ดังนั้นน่าจะต้องมี semantic classification หรือ embedding similarity เข้ามาช่วยร่วมด้วย

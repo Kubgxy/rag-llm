@@ -206,6 +206,7 @@ class LLMService:
         top_k: int = None,
         selected_files: list = None,
         memory_context: str = "",
+        filter_employee_email: str = None,
     ) -> Dict[str, Any]:
         """
         ถามคำถามโดยใช้ context จาก Vector Store
@@ -229,23 +230,37 @@ class LLMService:
         # 📊 [Routing] ตรวจสอบไฟล์ทั้งหมดในเซสชันเพื่อประมวลผลระบบนำร่องไฮบริด (Hybrid Router)
         from sqlalchemy import select
         from app.database import async_session
-        from app.db_models import Document as DbDocument
+        from app.db_models import Document as DbDocument, ChatSession
         import uuid
         import os
         import sqlite3
         import re
         
         all_session_docs = []
+        is_system_session = False
+        system_session_id = None
         try:
             session_uuid = uuid.UUID(session_id)
             async with async_session() as db:
+                # 1. ตรวจสอบว่า ChatSession นี้เชื่อมโยงกับ System Session หรือไม่
                 result = await db.execute(
-                    select(DbDocument).where(
-                        DbDocument.session_id == session_uuid,
-                        DbDocument.status.in_(["completed", "ready_for_chat"])
-                    )
+                    select(ChatSession).where(ChatSession.id == session_uuid)
                 )
-                all_session_docs = result.scalars().all()
+                chat_session = result.scalar_one_or_none()
+                if chat_session and chat_session.system_session_id:
+                    is_system_session = True
+                    system_session_id = chat_session.system_session_id
+                    print(f"🔗 [RAG Routing] ChatSession {session_id} is linked to SystemSession '{system_session_id}'")
+                
+                # 2. ดึงไฟล์เฉพาะในกรณีที่ไม่ใช่ System Session (System Session จะใช้เวกเตอร์ HRM ส่วนกลางที่ซิงค์ไว้)
+                if not is_system_session:
+                    result = await db.execute(
+                        select(DbDocument).where(
+                            DbDocument.session_id == session_uuid,
+                            DbDocument.status.in_(["completed", "ready_for_chat"])
+                        )
+                    )
+                    all_session_docs = result.scalars().all()
         except Exception as route_db_err:
             print(f"⚠️ [Routing DB Error] ดึงรายการไฟล์ในเซสชันล้มเหลว: {route_db_err}")
             
@@ -486,8 +501,9 @@ Please fix the error and write the corrected code. Keep in mind:
 
         # ดึง Storage Context สำหรับ session นี้
         t1 = time.time()
-        storage_context = vector_store_service.get_session_storage(session_id)
-        print(f"   ⏱️ Get storage: {time.time() - t1:.2f}s")
+        storage_session_id = system_session_id if is_system_session else session_id
+        storage_context = vector_store_service.get_session_storage(storage_session_id)
+        print(f"   ⏱️ Get storage ({storage_session_id}): {time.time() - t1:.2f}s")
 
         # สร้าง Index จาก Vector Store
         t1 = time.time()
@@ -500,30 +516,46 @@ Please fix the error and write the corrected code. Keep in mind:
         retriever_kwargs = {"similarity_top_k": effective_top_k}
         from llama_index.core.vector_stores import MetadataFilters, MetadataFilter, FilterCondition, FilterOperator
         
-        session_filter = MetadataFilter(key="session_id", value=session_id)
+        session_filter = MetadataFilter(key="session_id", value=storage_session_id)
         
+        # จัดโครงสร้าง filter ตาม filter_employee_email
+        email_or_public_filter = None
+        if filter_employee_email:
+            or_filters = [
+                MetadataFilter(key="employee_email", value=filter_employee_email),
+                MetadataFilter(key="resource_type", value="policies"),
+                MetadataFilter(key="resource_type", value="announcements"),
+                MetadataFilter(key="resource_type", value="benefits")
+            ]
+            email_or_public_filter = MetadataFilters(filters=or_filters, condition=FilterCondition.OR)
+            print(f"   🛡️ [Metadata Filter] จำกัดการเข้าถึงเฉพาะข้อมูลส่วนตัวของ {filter_employee_email} และเอกสารสาธารณะ")
+
         if selected_files:
-            print(f"   🎯 [Metadata Filter] ค้นหาเฉพาะไฟล์: {selected_files} และ session_id: {session_id}")
+            print(f"   🎯 [Metadata Filter] ค้นหาเฉพาะไฟล์: {selected_files} และ session_id: {storage_session_id}")
+            
+            # กรองไฟล์
             if len(selected_files) == 1:
-                filters = MetadataFilters(
-                    filters=[
-                        session_filter,
-                        MetadataFilter(key="file_name", value=selected_files[0])
-                    ],
-                    condition=FilterCondition.AND
-                )
+                file_filter = MetadataFilter(key="file_name", value=selected_files[0])
             else:
-                filters = MetadataFilters(
-                    filters=[
-                        session_filter,
-                        MetadataFilter(key="file_name", value=selected_files, operator=FilterOperator.IN)
-                    ],
-                    condition=FilterCondition.AND
-                )
-        else:
-            print(f"   🎯 [Metadata Filter] ค้นหาเฉพาะ session_id: {session_id}")
+                file_filter = MetadataFilter(key="file_name", value=selected_files, operator=FilterOperator.IN)
+                
+            sub_filters = [session_filter, file_filter]
+            if email_or_public_filter:
+                sub_filters.append(email_or_public_filter)
+                
             filters = MetadataFilters(
-                filters=[session_filter]
+                filters=sub_filters,
+                condition=FilterCondition.AND
+            )
+        else:
+            print(f"   🎯 [Metadata Filter] ค้นหาเฉพาะ session_id: {storage_session_id}")
+            sub_filters = [session_filter]
+            if email_or_public_filter:
+                sub_filters.append(email_or_public_filter)
+                
+            filters = MetadataFilters(
+                filters=sub_filters,
+                condition=FilterCondition.AND
             )
             
         retriever_kwargs["filters"] = filters
@@ -531,12 +563,25 @@ Please fix the error and write the corrected code. Keep in mind:
         vector_retriever = index.as_retriever(**retriever_kwargs)
 
         # 2. BM25 Retriever
-        if selected_files:
-            session_nodes = vector_store_service._load_bm25_nodes(session_id)
-            filtered_nodes = [
-                node for node in session_nodes 
-                if node.metadata.get("file_name") in selected_files
-            ]
+        if selected_files or filter_employee_email:
+            session_nodes = vector_store_service._load_bm25_nodes(storage_session_id)
+            filtered_nodes = session_nodes
+            
+            # กรองด้วย selected_files
+            if selected_files:
+                filtered_nodes = [
+                    node for node in filtered_nodes 
+                    if node.metadata.get("file_name") in selected_files
+                ]
+                
+            # กรองด้วย filter_employee_email
+            if filter_employee_email:
+                filtered_nodes = [
+                    node for node in filtered_nodes
+                    if node.metadata.get("employee_email") == filter_employee_email or
+                       node.metadata.get("resource_type") in ["policies", "announcements", "benefits"]
+                ]
+                
             if filtered_nodes:
                 print(f"🚀 [Hybrid Search Filtered] กำลังสร้างคีย์เวิร์ดฟิลเตอร์ชั่วคราวสำหรับ {len(filtered_nodes)} nodes")
                 from llama_index.retrievers.bm25 import BM25Retriever
@@ -547,10 +592,10 @@ Please fix the error and write the corrected code. Keep in mind:
                     tokenizer=thai_tokenizer,
                 )
             else:
-                print("⚠️ [Hybrid Search Filtered] ไม่พบ nodes สอดคล้องกับ selected_files สำหรับ BM25")
+                print("⚠️ [Hybrid Search Filtered] ไม่พบ nodes สอดคล้องกับตัวกรองสำหรับ BM25")
                 bm25_retriever = None
         else:
-            bm25_retriever = vector_store_service.get_bm25_retriever(session_id)
+            bm25_retriever = vector_store_service.get_bm25_retriever(storage_session_id)
 
         # ดึง LLM มาเตรียมไว้สำหรับ Retriever / Synthesizer
         llm = self.get_llm(model_name)

@@ -29,6 +29,7 @@ export const useChatHistoryStore = create(
                 mindmapNodes: docData?.mindmapNodes || state.history[sessionId]?.mindmapNodes,
                 mindmapEdges: docData?.mindmapEdges || state.history[sessionId]?.mindmapEdges,
                 categoryId: state.history[sessionId]?.categoryId || null, // Preserve category
+                systemSessionId: state.history[sessionId]?.systemSessionId || docData?.systemSessionId || null,
                 updatedAt: Date.now()
               }
             }
@@ -137,6 +138,7 @@ export const useChatHistoryStore = create(
                 mindmapNodes: mindmapNodes.length > 0 ? mindmapNodes : (existingSession.mindmapNodes || []),
                 mindmapEdges: mindmapEdges.length > 0 ? mindmapEdges : (existingSession.mindmapEdges || []),
                 categoryId: existingSession.categoryId || null,
+                systemSessionId: session.system_session_id || null,
                 updatedAt: new Date(session.updated_at).getTime(),
               }
             }

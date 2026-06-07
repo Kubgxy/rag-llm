@@ -36,6 +36,10 @@ export default function Workspace() {
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editTitle, setEditTitle] = useState('')
 
+  // ดึงข้อมูลสำหรับ System Session (ถ้ามี)
+  const sessionData = useChatHistoryStore(state => state.history[sessionId])
+  const systemSessionId = sessionData?.systemSessionId || null
+
   // Initialize theme from localStorage/system preference
   useEffect(() => {
     const isDark = document.documentElement.classList.contains('dark')
@@ -185,13 +189,20 @@ export default function Workspace() {
               <span className="font-semibold text-surface-900 dark:text-white truncate">
                 {chatTitle || t('workspaceSessionFallback')}
               </span>
-              <button
-                onClick={startEditingTitle}
-                className="p-1.5 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg text-surface-400 hover:text-primary-600 dark:hover:text-primary-400 transition-all opacity-0 group-hover:opacity-100 shrink-0"
-                title={t('workspaceEditTitle')}
-              >
-                <Pencil className="w-4 h-4" />
-              </button>
+              {!systemSessionId && (
+                <button
+                  onClick={startEditingTitle}
+                  className="p-1.5 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg text-surface-400 hover:text-primary-600 dark:hover:text-primary-400 transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                  title={t('workspaceEditTitle')}
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+              )}
+              {systemSessionId && (
+                <span className="ml-2 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
+                  {lang === 'th' ? 'ระบบองค์กร' : 'Enterprise Shared'}
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -199,7 +210,9 @@ export default function Workspace() {
         {/* Toolbar: Model Selector + Compare Toggle + Theme Toggle */}
         <div className="flex items-center gap-3">
           <ModelSelector />
-          <CompareToggle isCompareMode={isCompareMode} onToggle={handleToggleCompare} />
+          {!systemSessionId && (
+            <CompareToggle isCompareMode={isCompareMode} onToggle={handleToggleCompare} />
+          )}
           
           <button
             onClick={toggleLanguage}

@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import { MessageSquare, FileText, PanelRight, ExternalLink, X, Globe } from 'lucide-react'
+import { useLocation, useParams } from 'react-router-dom'
+import { MessageSquare, FileText, PanelRight, ExternalLink, X, Globe, Shield, RefreshCw, Database, Server, UserCheck, EyeOff } from 'lucide-react'
 import { useDocumentStore } from '../../stores/documentStore.js'
 import { useLanguageStore } from '../../stores/languageStore.js'
+import { useSystemSessionStore } from '../../stores/systemSessionStore.js'
+import { useChatHistoryStore } from '../../stores/chatHistoryStore.js'
 import UploadZone from '../upload/UploadZone.jsx'
 import WebSearchPreview from '../search/WebSearchPreview.jsx'
 import ChatMessage from '../chat/ChatMessage.jsx'
 import ChatInput from '../chat/ChatInput.jsx'
 import KnowledgeTabs from '../knowledge/KnowledgeTabs.jsx'
+import SyncStatusBadge from '../system-session/SyncStatusBadge.jsx'
 
 /**
  * NormalLayout - 3-Column Layout for regular chat
@@ -32,11 +35,27 @@ export function NormalLayout({
   const [isSourcesModalOpen, setIsSourcesModalOpen] = useState(false)
   const [activeLeftTab, setActiveLeftTab] = useState('docs') // 'docs' or 'search'
 
+  // ดึงข้อมูลสำหรับ System Session (ถ้ามี)
+  const { sessionId } = useParams()
+  const sessionData = useChatHistoryStore(state => state.history[sessionId])
+  const systemSessionId = sessionData?.systemSessionId || null
+
+  const { systemSessions, syncHistory, fetchSyncHistory, fetchSystemSessions } = useSystemSessionStore()
+  const systemSession = systemSessions.find(s => s.id === systemSessionId) || null
+  const currentSyncHistory = syncHistory[systemSessionId] || []
+
+  useEffect(() => {
+    if (systemSessionId) {
+      fetchSystemSessions()
+      fetchSyncHistory(systemSessionId)
+    }
+  }, [systemSessionId, fetchSystemSessions, fetchSyncHistory])
+
   // Calculate cumulative document storage size in MB
   const totalSizeBytes = documents.reduce((sum, doc) => sum + (doc.size || 0), 0)
   const totalSizeMB = totalSizeBytes / (1024 * 1024)
   const location = useLocation()
-  const { t } = useLanguageStore()
+  const { lang, t } = useLanguageStore()
 
   // ---- Resize Logic ----
   const [rightPanelWidth, setRightPanelWidth] = useState(null)
@@ -224,7 +243,97 @@ export function NormalLayout({
 
         {/* Left Column Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {activeLeftTab === 'docs' ? (
+          {systemSessionId ? (
+            <div className="space-y-5 animate-fadeIn">
+              {/* แผงข้อมูลการเชื่อมต่อระบบ HRM */}
+              <div className="bg-white dark:bg-surface-850 border border-surface-200 dark:border-surface-800 rounded-2xl p-5 space-y-4 shadow-sm">
+                <div className="flex items-center gap-2 text-sm font-bold text-surface-900 dark:text-white border-b border-surface-100 dark:border-surface-800 pb-2">
+                  <Database className="w-4 h-4 text-emerald-500" />
+                  <span>{lang === 'th' ? 'แหล่งเชื่อมข้อมูลองค์กร' : 'Enterprise Data Source'}</span>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-surface-500">{lang === 'th' ? 'ประเภท:' : 'Type:'}</span>
+                    <span className="font-semibold text-surface-800 dark:text-surface-300">FastAPI REST API</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-surface-500">{lang === 'th' ? 'ที่อยู่เซิร์ฟเวอร์:' : 'Server Host:'}</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">http://127.0.0.1:8001</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-surface-500">{lang === 'th' ? 'กลไกการซิงค์:' : 'Sync Pipeline:'}</span>
+                    <span className="font-semibold text-surface-800 dark:text-surface-300">Incremental + Webhook</span>
+                  </div>
+                </div>
+
+                {systemSession && (
+                  <div className="pt-3 border-t border-surface-100 dark:border-surface-800 flex items-center justify-between">
+                    <SyncStatusBadge status={systemSession.sync_status} lastSyncedAt={null} />
+                  </div>
+                )}
+              </div>
+
+              {/* ประวัติการซิงค์ข้อมูล (Sync History) */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <RefreshCw className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>{lang === 'th' ? 'ประวัติการอัปเดต (Sync Logs)' : 'Sync History Logs'}</span>
+                  </h3>
+                  <button
+                    onClick={() => fetchSyncHistory(systemSessionId)}
+                    className="p-1 hover:bg-surface-200 dark:hover:bg-surface-800 text-surface-500 rounded-lg transition-colors"
+                    title={lang === 'th' ? 'รีเฟรชประวัติ' : 'Refresh sync logs'}
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                  {currentSyncHistory.length === 0 ? (
+                    <div className="text-center py-8 bg-surface-50 dark:bg-surface-900/40 rounded-2xl border border-dashed border-surface-200 dark:border-surface-800">
+                      <span className="text-xs text-surface-400">{lang === 'th' ? 'ไม่มีบันทึกประวัติการซิงค์' : 'No sync history logs'}</span>
+                    </div>
+                  ) : (
+                    currentSyncHistory.map((log) => {
+                      const isSuccess = log.status === 'success';
+                      return (
+                        <div
+                          key={log.id}
+                          className="p-3 bg-white dark:bg-surface-800/30 border border-surface-150 dark:border-surface-800/50 rounded-xl space-y-1.5"
+                        >
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-semibold text-surface-800 dark:text-surface-300">
+                              {log.sync_type === 'full' ? 'Full Sync' : log.sync_type === 'incremental' ? 'Incremental' : 'Webhook Trigger'}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                              isSuccess
+                                ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-150 dark:border-emerald-800/40'
+                                : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 border border-rose-150 dark:border-rose-800/40'
+                            }`}>
+                              {isSuccess ? (lang === 'th' ? 'สำเร็จ' : 'Success') : (lang === 'th' ? 'ล้มเหลว' : 'Failed')}
+                            </span>
+                          </div>
+                          
+                          <div className="text-[10px] text-surface-500 flex justify-between">
+                            <span>{new Date(log.started_at).toLocaleTimeString(lang === 'th' ? 'th-TH' : 'en-US')}</span>
+                            <span>{lang === 'th' ? `ซิงค์ได้: ${log.records_synced} เรคคอร์ด` : `Synced: ${log.records_synced} items`}</span>
+                          </div>
+
+                          {!isSuccess && log.error_message && (
+                            <p className="text-[9px] text-rose-500 font-medium bg-rose-50/50 dark:bg-rose-950/10 p-1.5 rounded border border-rose-100 dark:border-rose-900/30 truncate">
+                              {log.error_message}
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : activeLeftTab === 'docs' ? (
             <div className="space-y-4 animate-fadeIn">
               <UploadZone />
               
@@ -398,7 +507,82 @@ export function NormalLayout({
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 flex flex-col">
-          {documents.length === 0 && importedWebSources.length === 0 ? (
+          {systemSessionId ? (
+            <div className="space-y-5 animate-fadeIn">
+              {/* หัวข้อ Governance */}
+              <div className="bg-emerald-50/50 dark:bg-emerald-950/10 border border-emerald-200/50 dark:border-emerald-900/20 rounded-2xl p-4 text-center">
+                <Shield className="w-8 h-8 text-emerald-600 dark:text-emerald-400 mx-auto mb-2" />
+                <h3 className="text-sm font-bold text-surface-900 dark:text-white">
+                  {lang === 'th' ? 'ระบบความปลอดภัยระดับองค์กร' : 'Enterprise RAG Security'}
+                </h3>
+                <p className="text-xs text-surface-500 dark:text-surface-400 mt-1">
+                  {lang === 'th'
+                    ? 'ควบคุมสิทธิ์และการถามตอบผ่านระบบ Guardrails AI'
+                    : 'Governed and audited by Guardrails AI Framework'}
+                </p>
+              </div>
+
+              {/* นโยบาย 3 ชั้น */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
+                  {lang === 'th' ? 'นโยบายการควบคุมข้อมูล (3-Layer Security)' : '3-Layer Security Pipeline'}
+                </h4>
+
+                <div className="space-y-3">
+                  {/* Layer 1 */}
+                  <div className="flex items-start gap-3 p-3 bg-white dark:bg-surface-900/45 border border-surface-150 dark:border-surface-800/85 rounded-xl shadow-sm">
+                    <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 shrink-0">
+                      <Shield className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-surface-800 dark:text-surface-200">
+                        1. Input Guardrails (จำกัดหัวข้อ)
+                      </p>
+                      <p className="text-[10px] text-surface-500 mt-0.5 leading-relaxed">
+                        {lang === 'th'
+                          ? 'วิเคราะห์ความหมายคำถามเชิงลึก ป้องกันไม่ให้แอบถามเงินเดือน โบนัส หรือผลประเมินของผู้อื่น'
+                          : 'Blocks questions trying to fetch sensitive topics of other coworkers like salary, bonus, or reviews.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Layer 2 */}
+                  <div className="flex items-start gap-3 p-3 bg-white dark:bg-surface-900/45 border border-surface-150 dark:border-surface-800/85 rounded-xl shadow-sm">
+                    <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 shrink-0">
+                      <UserCheck className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-surface-800 dark:text-surface-200">
+                        2. RBAC Dynamic Filter (คัดกรองข้อมูล)
+                      </p>
+                      <p className="text-[10px] text-surface-500 mt-0.5 leading-relaxed">
+                        {lang === 'th'
+                          ? 'ผู้ใช้ทั่วไป (Employee) จะสืบค้นเจอเฉพาะข้อมูลตัวเองเท่านั้น ส่วน HR Admin สามารถสืบค้นข้อมูลแผนกได้'
+                          : 'Filters search database: Employees can only retrieve their own data. HR Admins can search department-wide.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Layer 3 */}
+                  <div className="flex items-start gap-3 p-3 bg-white dark:bg-surface-900/45 border border-surface-150 dark:border-surface-800/85 rounded-xl shadow-sm">
+                    <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 shrink-0">
+                      <EyeOff className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-surface-800 dark:text-surface-200">
+                        3. Output Redaction (เซนเซอร์ PII)
+                      </p>
+                      <p className="text-[10px] text-surface-500 mt-0.5 leading-relaxed">
+                        {lang === 'th'
+                          ? 'สแกนคำตอบของโมเดลก่อนส่งกลับ และเซนเซอร์เบอร์โทร, เลขบัตรประชาชน หรือบัญชีธนาคารอัตโนมัติ'
+                          : 'Automatically redacts model responses containing phone numbers, ID cards, or bank accounts into [REDACTED].'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : documents.length === 0 && importedWebSources.length === 0 ? (
             <div className="text-center mt-10">
               <PanelRight className="w-10 h-10 text-surface-300 dark:text-surface-700 mx-auto mb-3" />
               <p className="text-sm text-surface-500">{t('normalUploadToViewInsights')}</p>
